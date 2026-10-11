@@ -29,7 +29,6 @@ export const SUPPORT_OPTIONS = [
   'Other',
 ];
 
-export const AMOUNT_PER_SEEKER_OPTIONS = ['$50', '$100', '$200', '$250'];
 
 export const COMMUNITY_SIZE_OPTIONS = [
   '20,000–50,000',
@@ -233,7 +232,6 @@ export const FLOWS = {
           { name: 'Faith Tradition / Church', label: 'Faith tradition / church', type: 'text' },
           { name: 'Capacity (How Many People)', label: 'Capacity (how many people)', type: 'select', options: ['1–2', '3–4', '5–6 (a full family)', 'Not sure yet'] },
           { name: 'Assistant Preference', label: 'Would you like a Spiritual Assistant to help you, or would you prefer to work alone?', type: 'select', options: ["I'd welcome a Spiritual Assistant", 'I prefer to work alone'] },
-          { name: 'Desired Amount Per Seeker', label: 'What would you like to receive per seeker you support, for your service?', type: 'select', options: AMOUNT_PER_SEEKER_OPTIONS },
           { name: 'Church or Pastoral Reference', label: 'Church or pastoral reference (optional)', type: 'text', hint: 'Name + contact — for our own vetting, never shown publicly.' },
           { name: 'Anything Else', label: 'Anything else? (optional)', type: 'textarea' },
           CREDENTIALS_GATE_FIELD,
@@ -268,7 +266,6 @@ export const FLOWS = {
           { name: 'Your Story / Testimony', label: 'Your testimony', type: 'textarea' },
           { name: 'Years in Ministry', label: 'Years in ministry (years of experience)', type: 'select', options: ['New to ministry', '1–5 years', '5–15 years', '15+ years'] },
           { name: 'Church Location', label: 'Church location', type: 'text' },
-          { name: 'Desired Amount Per Seeker', label: 'What would you like to receive per seeker you support, for your service?', type: 'select', options: AMOUNT_PER_SEEKER_OPTIONS },
           { name: 'Anything Else', label: 'Anything else? (optional)', type: 'textarea' },
           CREDENTIALS_GATE_FIELD,
           ...SOCIAL_FIELDS,
