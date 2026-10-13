@@ -248,7 +248,7 @@ export async function fetchCreatorHandle(authUserId) {
 // CreatePostScreen's handlePost) use this id as that folder name.
 export async function getMyLeaderRow(myAuthId) {
   const person = await fetchMyDirectoryPerson(myAuthId);
-  if (!person || !['influencer', 'mother', 'pastor'].includes(person.role)) return null;
+  if (!person || !['influencer', 'mother', 'pastor', 'church'].includes(person.role)) return null;
   return { id: person.auth_user_id, vetting_status: person.vetting_status };
 }
 

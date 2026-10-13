@@ -10,6 +10,8 @@
 //   mother      -> mothers table       (vetted)
 //   priest      -> pastors table       (vetted)
 //   influencer  -> influencers table   (vetted)
+//   church      -> churches table      (auto-approved; contact + reference
+//                  details go to the owner-only church_private table)
 //
 // Every role's table has a referral_number column, drawn from one shared
 // sequence across all five tables — so every sign-up, regardless of role,
@@ -35,6 +37,17 @@ export const COMMUNITY_SIZE_OPTIONS = [
   '50,000–100,000',
   '100,000–500,000',
   '500,000+',
+];
+
+export const CHURCH_TYPE_OPTIONS = ['Church', 'Ministry', 'Parachurch / non-profit', 'Fellowship / small group', 'Other'];
+export const CHURCH_SIZE_OPTIONS = ['Under 50', '50–150', '150–500', '500–2,000', '2,000+'];
+export const CHURCH_FOCUS_OPTIONS = [
+  'Prayer', 'Teaching & discipleship', 'Worship', 'Youth & young adults', 'Women', 'Men', 'Marriage & family',
+  'Counselling & care', 'Outreach & missions', 'Recovery & healing', 'Online ministry', 'Other',
+];
+export const CHURCH_MEETING_OPTIONS = ['In person', 'Online', 'Both in person and online'];
+export const CHURCH_REGISTRATION_OPTIONS = [
+  'Registered charity / non-profit', 'Incorporated church or ministry', 'Part of a denomination or network', 'Not formally registered',
 ];
 
 export const HIGHER_ED_OPTIONS = ['Yes, I do', "No, I don't"];
@@ -304,6 +317,63 @@ export const FLOWS = {
       credentialsStep('influencer'),
     ],
   },
+  church: {
+    label: 'Church / Ministry',
+    intro: 'Give your church or ministry a home: share your community, teaching and offerings.',
+    steps: [
+      {
+        id: 'church-core',
+        title: 'Register your church or ministry',
+        sub: 'The essentials to get you started. Your organisation goes live as soon as you finish sign-up.',
+        fields: [
+          { name: 'Organisation Name', label: 'Church or ministry name', type: 'text', required: true },
+          { name: 'Organisation Type', label: 'Type of organisation', type: 'select', options: CHURCH_TYPE_OPTIONS, required: true },
+          { name: 'Denomination', label: 'Denomination or tradition (optional)', type: 'text', hint: 'e.g. Baptist, Pentecostal, non-denominational.' },
+          { name: 'City', label: 'City', type: 'text', required: true },
+          { name: 'Country', label: 'Country', type: 'text', required: true },
+          { name: 'Contact Name', label: 'Your name', type: 'text', required: true, hint: 'The person signing up. Kept private, never shown publicly.' },
+          { name: 'Contact Role', label: 'Your role (optional)', type: 'text', hint: 'e.g. Senior Pastor, Administrator.' },
+          { name: 'Email', label: 'Email', type: 'email', required: true },
+          ...ACCOUNT_FIELDS,
+        ],
+      },
+      {
+        id: 'church-more',
+        title: 'About your organisation',
+        sub: 'Optional, but it helps people find and trust you. You can add or change any of this later from Edit Profile.',
+        fields: [
+          { name: 'About / Mission', label: 'About / mission', type: 'textarea', hint: 'Who you are and who you serve.' },
+          { name: 'Focus Areas', label: 'Ministries and focus areas', type: 'pillmultiselect', options: CHURCH_FOCUS_OPTIONS, hint: 'Select all that apply' },
+          { name: 'Meeting Format', label: 'How do you meet?', type: 'select', options: CHURCH_MEETING_OPTIONS },
+          { name: 'Congregation Size', label: 'Approximate size of your community', type: 'select', options: CHURCH_SIZE_OPTIONS },
+          { name: 'Year Founded', label: 'Year founded', type: 'number', hint: 'e.g. 1998' },
+          { name: 'Region / State', label: 'State / region', type: 'text' },
+          { name: 'Website', label: 'Website', type: 'text', hint: 'https://' },
+          ...SOCIAL_FIELDS,
+        ],
+      },
+      {
+        id: 'church-trust',
+        title: 'Trust and contact details',
+        sub: 'Helps people trust your organisation. Contact, reference and document details are private and never shown publicly.',
+        fields: [
+          { name: 'Leader Name', label: 'Lead pastor / leader name', type: 'text' },
+          { name: 'Leader Title', label: 'Leader title', type: 'text', hint: 'e.g. Senior Pastor.' },
+          { name: 'Registration Type', label: 'Registration status', type: 'select', options: CHURCH_REGISTRATION_OPTIONS },
+          { name: 'Registration Number', label: 'Registration / charity number (optional)', type: 'text' },
+          { name: 'Affiliated Body', label: 'Denominational network or association (optional)', type: 'text' },
+          { name: 'Phone', label: 'Phone (optional)', type: 'text' },
+          { name: 'Street Address', label: 'Street address (optional)', type: 'text' },
+          { name: 'Postcode', label: 'Postcode / ZIP (optional)', type: 'text' },
+          { name: 'Reference Name', label: 'Reference: name (optional)', type: 'text', hint: 'Someone outside your organisation who can vouch for it, such as a denominational leader or another pastor.' },
+          { name: 'Reference Relationship', label: 'Reference: relationship to you', type: 'text' },
+          { name: 'Reference Contact', label: 'Reference: email or phone', type: 'text' },
+          { name: 'Certification Upload', label: 'Verification document (optional)', type: 'file', hint: 'For example a charity or incorporation certificate, or a letter from your denomination. PDF, JPG or PNG. Private, never shown publicly.' },
+          { name: 'Anything Else', label: 'Anything else? (optional)', type: 'textarea' },
+        ],
+      },
+    ],
+  },
 };
 
 // Every role's thank-you screen (see ReferralThankYouScreen in App.js /
@@ -340,5 +410,10 @@ export const THANK_YOU = {
     icon: '✨',
     title: 'Thank you.',
     body: 'You’re being vetted — every Spiritual Leader partner goes through a review before we confirm the partnership. We’ll follow up soon.',
+  },
+  church: {
+    icon: '⛪',
+    title: 'Welcome to Rooted Together.',
+    body: 'Your church or ministry is live. Add more about your organisation any time from Profile → Edit Profile.',
   },
 };

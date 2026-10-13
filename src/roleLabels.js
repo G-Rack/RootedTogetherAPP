@@ -6,6 +6,7 @@ export const ROLE_LABELS = {
   mother: 'Spiritual Mother',
   pastor: 'Priest / Pastor',
   influencer: 'Spiritual Leader',
+  church: 'Church / Ministry',
 };
 
 export function initialsFor(name) {

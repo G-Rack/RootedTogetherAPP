@@ -33,6 +33,7 @@ const FILTERS = [
   { key: 'seeker', label: 'Seekers' },
   { key: 'mother', label: 'Mothers' },
   { key: 'pastor', label: 'Pastors' },
+  { key: 'church', label: 'Churches' },
   { key: 'assistant', label: 'Assistants' },
 ];
 

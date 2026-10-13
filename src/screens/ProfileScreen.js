@@ -22,7 +22,7 @@ import PayoutsReferralsScreen from './PayoutsReferralsScreen';
 // the new Dedication Scorecard — a placeholder that will grow into a real
 // consistency tracker (prayer, check-ins, growth) over time, not invented
 // data pretending to be real yet.
-const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor'];
+const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
 
 function notReady(label) {
   Alert.alert(label, 'This is coming in a later part of the build.');

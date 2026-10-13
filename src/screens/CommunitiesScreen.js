@@ -10,11 +10,11 @@ function formatMembers(n) {
   return `${n} ${n === 1 ? 'member' : 'members'}`;
 }
 
-// Starting a community is a Spiritual Leader / Mother / Pastor thing —
+// Starting a community is a Spiritual Leader / Mother / Pastor / Church thing —
 // same roles that get the Instagram-style profile and can post in Explore
 // (see FOLLOWABLE_ROLES in ProfileScreen.js). Seekers/Assistants can join
 // and take part in any community, just not create one.
-const CAN_CREATE_ROLES = ['influencer', 'mother', 'pastor'];
+const CAN_CREATE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
 
 // The Communities directory — a Facebook-Marketplace-style browsable grid
 // of topic communities (Grief, Family Estrangement, Parenting, ...) rather

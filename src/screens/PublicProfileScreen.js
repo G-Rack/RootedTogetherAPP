@@ -24,7 +24,10 @@ const FAMILY_REQUESTER_ROLES = ['seeker', 'assistant'];
 // Girik's instruction, this is Leaders, Mothers, and Pastors only. Seekers
 // and Assistants keep the older About/Details/Support-Focus layout below,
 // unchanged.
-const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor'];
+const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
+// Every followable role can post (matches the posts table's insert policy), so
+// their public profile shows their posts and post count.
+const POSTING_ROLES = FOLLOWABLE_ROLES;
 
 // Personal, request-based services offered on a Leader/Mother/Pastor's
 // profile — distinct from the Spiritual Family flow above (which is a
@@ -139,7 +142,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
       setAvatarUrl(urls[data.profile_picture_path] || null);
     }
 
-    if (role === 'influencer') {
+    if (POSTING_ROLES.includes(role)) {
       const theirPosts = await fetchPosts({ authorId: data?.auth_user_id });
       setPosts(theirPosts);
       const [images, likes, comments] = await Promise.all([
@@ -158,7 +161,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
       const [following, followers, myPostCount, handle] = await Promise.all([
         getFollowStatus(myAuthId, data.auth_user_id),
         getFollowerCount(data.auth_user_id),
-        role === 'influencer' ? getPostCount(data.auth_user_id) : Promise.resolve(0),
+        POSTING_ROLES.includes(role) ? getPostCount(data.auth_user_id) : Promise.resolve(0),
         fetchCreatorHandle(data.auth_user_id),
       ]);
       setIsFollowing(following);
@@ -255,15 +258,13 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
     }
   }
 
-  const showPostsList = isFollowable && activeTab === 'posts' && role === 'influencer';
+  const showPostsList = isFollowable && activeTab === 'posts' && POSTING_ROLES.includes(role);
   const showCommunitiesList = isFollowable && activeTab === 'communities';
   const listData = showPostsList ? (posts || []) : showCommunitiesList ? (theirCommunities || []) : [];
   let emptyMessage = null;
   if (isFollowable) {
     if (activeTab === 'posts') {
-      emptyMessage = role === 'influencer'
-        ? 'No posts yet.'
-        : 'No posts yet — only Spiritual Leaders can post right now.';
+      emptyMessage = 'No posts yet.';
     } else if (activeTab === 'communities' && theirCommunities !== null && theirCommunities.length === 0) {
       emptyMessage = `${person?.name || 'This person'} hasn’t joined any communities yet.`;
     }

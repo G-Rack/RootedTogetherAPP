@@ -9,6 +9,7 @@ const ROLE_ORDER = [
   { key: 'mother', title: 'I am a Spiritual Mother' },
   { key: 'priest', title: "I'm a Priest or Pastor" },
   { key: 'influencer', title: "I'm a Spiritual Leader" },
+  { key: 'church', title: 'I represent a Church or Ministry' },
 ];
 
 export default function RoleSelectScreen({ onSelect, onLoginPress }) {

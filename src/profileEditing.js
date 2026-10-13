@@ -22,6 +22,7 @@ export const ROLE_TABLES = {
   mother: 'mothers',
   pastor: 'pastors',
   influencer: 'influencers',
+  church: 'churches',
 };
 
 // `flows.js`'s FLOWS object is keyed by sign-up flow name, and Pastor's
@@ -34,6 +35,7 @@ export const ROLE_TO_FLOW_KEY = {
   mother: 'mother',
   pastor: 'priest',
   influencer: 'influencer',
+  church: 'church',
 };
 
 // Copied from submit-signup's own FIELD_MAP — keyed by FLOWS key (so
@@ -114,6 +116,45 @@ export const FIELD_MAP = {
     'Licenses & Certifications': 'licenses_certifications',
     'Areas of Specialty': 'areas_of_specialty',
   },
+  // Public-safe church / ministry details (the `churches` table).
+  church: {
+    'Organisation Name': 'name',
+    'Organisation Type': 'organisation_type',
+    'Denomination': 'denomination',
+    'Year Founded': 'founded_year',
+    'Congregation Size': 'congregation_size',
+    'About / Mission': 'story_testimony',
+    'Focus Areas': 'focus_areas',
+    'Meeting Format': 'meeting_format',
+    'City': 'city',
+    'Region / State': 'region',
+    'Country': 'country',
+    'Website': 'website',
+    'Instagram': 'instagram',
+    'Leader Name': 'leader_name',
+    'Leader Title': 'leader_title',
+    'Registration Type': 'registration_type',
+    'Registration Number': 'registration_number',
+    'Affiliated Body': 'affiliated_body',
+    'Anything Else': 'anything_else',
+  },
+};
+
+// Owner-only church details live in a second table (`church_private`) so
+// nothing sensitive is ever publicly readable. Same field names as the flow.
+export const PRIVATE_ROLE_TABLES = { church: 'church_private' };
+export const PRIVATE_FIELD_MAP = {
+  church: {
+    'Email': 'email',
+    'Contact Name': 'contact_name',
+    'Contact Role': 'contact_role',
+    'Phone': 'phone',
+    'Street Address': 'street_address',
+    'Postcode': 'postcode',
+    'Reference Name': 'reference_name',
+    'Reference Relationship': 'reference_relationship',
+    'Reference Contact': 'reference_contact',
+  },
 };
 
 // Field names that never go through the generic form — Password/Confirm
@@ -142,18 +183,31 @@ export async function fetchMyFullProfileRow(myAuthId, role) {
     .order('created_at', { ascending: false })
     .limit(1);
   if (error || !data || !data.length) return null;
-  return data[0];
+  const row = data[0];
+
+  // Churches keep contact / reference details in a second, owner-only table;
+  // merge those columns in (public columns win on any shared name).
+  const privateTable = PRIVATE_ROLE_TABLES[role];
+  if (privateTable) {
+    const { data: priv } = await supabase
+      .from(privateTable)
+      .select('*')
+      .eq('auth_user_id', myAuthId)
+      .maybeSingle();
+    if (priv) return { ...priv, ...row };
+  }
+  return row;
 }
 
 // Builds the FieldControl-ready form state from a fetched role-table row —
 // the inverse of FIELD_MAP, keyed by field name instead of column so it
 // drops straight into `formData[field.name]`.
 export function buildFormDataFromRow(flowKey, row) {
-  const map = FIELD_MAP[flowKey] || {};
+  const map = { ...(FIELD_MAP[flowKey] || {}), ...(PRIVATE_FIELD_MAP[flowKey] || {}) };
   const formData = {};
   Object.entries(map).forEach(([fieldName, column]) => {
     const value = row ? row[column] : undefined;
-    if (fieldName === 'Child Age') {
+    if (fieldName === 'Child Age' || fieldName === 'Year Founded') {
       formData[fieldName] = value == null ? '' : String(value);
     } else {
       formData[fieldName] = value == null ? (Array.isArray(value) ? [] : '') : value;
@@ -171,24 +225,39 @@ export function buildFormDataFromRow(flowKey, row) {
 // explicitly names are ever included.
 export async function saveMyProfileFields(myAuthId, role, flowKey, formData) {
   const table = ROLE_TABLES[role];
-  const map = FIELD_MAP[flowKey] || {};
   if (!myAuthId || !table) throw new Error('Could not determine which profile to update.');
 
-  const updates = {};
-  Object.entries(map).forEach(([fieldName, column]) => {
-    if (EXCLUDED_FIELD_NAMES.has(fieldName)) return;
-    let value = formData[fieldName];
-    if (fieldName === 'Child Age') {
-      const n = parseInt(String(value ?? ''), 10);
-      value = Number.isFinite(n) ? n : null;
-    }
-    if (value === undefined) value = null;
-    if (value === '') value = null;
-    updates[column] = value;
-  });
+  const buildUpdates = (map) => {
+    const updates = {};
+    Object.entries(map).forEach(([fieldName, column]) => {
+      if (EXCLUDED_FIELD_NAMES.has(fieldName)) return;
+      let value = formData[fieldName];
+      if (fieldName === 'Child Age' || fieldName === 'Year Founded') {
+        const n = parseInt(String(value ?? ''), 10);
+        value = Number.isFinite(n) ? n : null;
+      }
+      if (value === undefined) value = null;
+      if (value === '') value = null;
+      updates[column] = value;
+    });
+    return updates;
+  };
 
-  const { error } = await supabase.from(table).update(updates).eq('auth_user_id', myAuthId);
+  const { error } = await supabase
+    .from(table)
+    .update(buildUpdates(FIELD_MAP[flowKey] || {}))
+    .eq('auth_user_id', myAuthId);
   if (error) throw error;
+
+  const privateTable = PRIVATE_ROLE_TABLES[role];
+  const privateMap = PRIVATE_FIELD_MAP[flowKey];
+  if (privateTable && privateMap) {
+    const { error: privateError } = await supabase
+      .from(privateTable)
+      .update(buildUpdates(privateMap))
+      .eq('auth_user_id', myAuthId);
+    if (privateError) throw privateError;
+  }
   return true;
 }
 
@@ -209,7 +278,7 @@ export function hasCompletedOptionalDetails(role, row) {
   const step = flow?.steps?.[1]; // the first optional step, right after the core one
   if (!step) return true; // no optional step for this role — nothing to nudge about
 
-  const map = FIELD_MAP[flowKey] || {};
+  const map = { ...(FIELD_MAP[flowKey] || {}), ...(PRIVATE_FIELD_MAP[flowKey] || {}) };
   return step.fields.some((f) => {
     if (EXCLUDED_FIELD_NAMES.has(f.name)) return false; // Profile Picture etc. — not "details"
     const column = map[f.name];
