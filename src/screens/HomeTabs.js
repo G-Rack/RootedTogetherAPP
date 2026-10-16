@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme';
 import ExploreScreen from './ExploreScreen';
 import DirectoryScreen from './DirectoryScreen';
@@ -17,6 +18,8 @@ import CommunityDetailScreen from './CommunityDetailScreen';
 import CreateCommunityScreen from './CreateCommunityScreen';
 import CreateCommunityPostScreen from './CreateCommunityPostScreen';
 import CommunityPostCommentsScreen from './CommunityPostCommentsScreen';
+import { initBilling, hasActivePremium } from '../billing';
+import { registerForPushNotifications, listenForNotificationTaps } from '../notifications';
 import { fetchIsPremium, upgradeToPremium, findConversationBetween, getOrCreateConversation } from '../chatApi';
 
 // The logged-in home base. No React Navigation here — the whole app already
@@ -45,6 +48,7 @@ const TABS = [
 ];
 
 export default function HomeTabs({ session, onLogOut }) {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('directory');
   // null | {type:'profile',role,id} | {type:'createPost'} | {type:'comments',postId}
   // | {type:'chatThread',conversation,otherPerson} | {type:'chatUpgrade',person}
@@ -61,6 +65,28 @@ export default function HomeTabs({ session, onLogOut }) {
   // themselves, which updates this state directly (see handleUpgrade).
   useEffect(() => {
     fetchIsPremium(myAuthId).then(setIsPremium).catch(() => {});
+    // Store subscriptions (billing.js): if this account already has an
+    // active Premium subscription (e.g. bought on another device), mark it.
+    initBilling(myAuthId).then(async (ready) => {
+      if (ready && (await hasActivePremium())) {
+        upgradeToPremium(myAuthId).catch(() => {});
+        setIsPremium(true);
+      }
+    });
+  }, [myAuthId]);
+
+  // Push notifications: ask permission + save this phone's token once signed
+  // in, and jump to the right tab when a notification is tapped. All of this
+  // is a no-op in Expo Go (remote push isn't supported there).
+  useEffect(() => {
+    if (!myAuthId) return undefined;
+    registerForPushNotifications();
+    return listenForNotificationTaps((data) => {
+      setOverlay(null);
+      if (data?.type === 'message') setTab('chat');
+      else if (data?.type === 'family_message' || data?.type === 'real_family_message') setTab('family');
+      else if (data?.type === 'follow') setTab('profile');
+    });
   }, [myAuthId]);
 
   function selectTab(key) {
@@ -94,8 +120,8 @@ export default function HomeTabs({ session, onLogOut }) {
     setOverlay({ type: 'communitiesBrowse' });
   }
 
-  // No billing exists yet — "upgrading" just flips the flag on this
-  // person's own profiles row (see chatApi.upgradeToPremium's comment)
+  // Runs after a successful store purchase (or, until billing.js has
+  // RevenueCat keys, straight from the button): marks this person Premium
   // and lets whatever they were doing continue.
   async function handleUpgrade() {
     await upgradeToPremium(myAuthId);
@@ -109,9 +135,8 @@ export default function HomeTabs({ session, onLogOut }) {
   // Reached from a public profile's "Send a message" button, or from one
   // of its Additional Services "Request" buttons (which pass an
   // initialDraft — a pre-filled, editable message — as the second arg).
-  // Replying to an existing conversation is always free regardless of
-  // Premium status; starting a brand new one is the one place the Premium
-  // gate applies. Wrapped in try/catch since this runs un-awaited from a
+  // Starting a new conversation needs Premium; an existing one opens, and
+  // ChatThreadScreen itself asks for Premium before a free member can reply. Wrapped in try/catch since this runs un-awaited from a
   // button's onPress — an uncaught rejection here would surface as the
   // same raw crash toast fixed elsewhere in Family (see FamilyScreen etc.).
   async function handleSendMessage(person, initialDraft) {
@@ -145,6 +170,7 @@ export default function HomeTabs({ session, onLogOut }) {
         onOpenComments={openComments}
         onSendMessage={handleSendMessage}
         onOpenCommunity={openCommunity}
+        onOpenProfile={openProfile}
       />
     );
   } else if (overlay?.type === 'chatThread') {
@@ -155,6 +181,19 @@ export default function HomeTabs({ session, onLogOut }) {
         otherPerson={overlay.otherPerson}
         initialDraft={overlay.initialDraft}
         onBack={closeOverlay}
+        isPremium={isPremium}
+        onRequestUpgrade={() => setOverlay({ type: 'replyUpgrade', conversation: overlay.conversation, otherPerson: overlay.otherPerson })}
+      />
+    );
+  } else if (overlay?.type === 'replyUpgrade') {
+    body = (
+      <PremiumUpsellScreen
+        context="chat"
+        targetName={overlay.otherPerson?.name}
+        onUpgrade={async () => {
+          await handleUpgrade();
+          openThread(overlay.conversation, overlay.otherPerson);
+        }}
       />
     );
   } else if (overlay?.type === 'chatUpgrade') {
@@ -273,6 +312,7 @@ export default function HomeTabs({ session, onLogOut }) {
         onOpenComments={openComments}
         onOpenCommunity={openCommunity}
         onCreateCommunity={openCreateCommunity}
+        onOpenProfile={openProfile}
       />
     );
   }
@@ -281,7 +321,7 @@ export default function HomeTabs({ session, onLogOut }) {
     <View style={{ flex: 1 }}>
       <View style={styles.content}>{body}</View>
 
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { paddingBottom: insets.bottom + 6, marginHorizontal: -24, paddingHorizontal: 24 }]}>
         {TABS.map((t) => {
           // Opening a profile (or anything else reachable from more than
           // one tab) doesn't change `tab` itself — it's still whichever
@@ -314,8 +354,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: 'rgba(107,66,38,0.12)',
-    marginTop: 16,
+    marginTop: 8,
     paddingTop: 10,
+    backgroundColor: colors.white,
   },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
   tabIconInactive: { opacity: 0.7 },

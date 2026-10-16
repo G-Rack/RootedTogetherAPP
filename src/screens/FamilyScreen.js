@@ -9,6 +9,7 @@ import FamilyMindMapScreen from './FamilyMindMapScreen';
 import FamilyMotherPageScreen from './FamilyMotherPageScreen';
 import FamilySiblingPageScreen from './FamilySiblingPageScreen';
 import FamilyCallPackagesScreen from './FamilyCallPackagesScreen';
+import FamilyGroupChatScreen from './FamilyGroupChatScreen';
 import PremiumUpsellScreen from './PremiumUpsellScreen';
 
 // The router for the Family tab. Nothing here is reachable from any other
@@ -107,7 +108,24 @@ export default function FamilyScreen({ session, isPremium, onUpgrade, onFindPeop
   }
 
   // --- Mother / Pastor ---
+  // Creating and leading a Spiritual Family is part of Premium, same as
+  // messaging: a creator without Premium sees the upsell here, and once they
+  // upgrade (isPremium flips via HomeTabs) this re-renders straight into
+  // their family.
+  if (isLeader && !isPremium) {
+    return <PremiumUpsellScreen context="family" onUpgrade={onUpgrade} />;
+  }
   if (isLeader && family) {
+    if (screen === 'groupChat') {
+      return (
+        <FamilyGroupChatScreen
+          session={session}
+          family={family}
+          leaderName={leaderName}
+          onBack={() => setScreen('map')}
+        />
+      );
+    }
     if (screen === 'mother') {
       return (
         <FamilyMotherPageScreen
@@ -142,6 +160,7 @@ export default function FamilyScreen({ session, isPremium, onUpgrade, onFindPeop
         isLeader
         myLeaderName={leaderName}
         onOpenMotherPage={() => setScreen('mother')}
+        onOpenGroupChat={() => setScreen('groupChat')}
         onOpenSiblingPage={(m, person) => {
           setSiblingTarget({ authId: m.sibling_auth_id, name: person?.name });
           setScreen('sibling');
@@ -200,6 +219,16 @@ export default function FamilyScreen({ session, isPremium, onUpgrade, onFindPeop
 
   // --- Seeker / Assistant, accepted ---
   if (isSibling && membership?.status === 'accepted' && family) {
+    if (screen === 'groupChat') {
+      return (
+        <FamilyGroupChatScreen
+          session={session}
+          family={family}
+          leaderName={leaderName}
+          onBack={() => setScreen('map')}
+        />
+      );
+    }
     if (screen === 'mother') {
       return (
         <FamilyMotherPageScreen
@@ -234,6 +263,7 @@ export default function FamilyScreen({ session, isPremium, onUpgrade, onFindPeop
         isLeader={false}
         myLeaderName={leaderName}
         onOpenMotherPage={() => setScreen('mother')}
+        onOpenGroupChat={() => setScreen('groupChat')}
         onOpenSiblingPage={(m, person) => {
           setSiblingTarget({ authId: m.sibling_auth_id, name: person?.name });
           setScreen('sibling');

@@ -24,10 +24,10 @@ function timeAgo(iso) {
 
 // The Chat tab's default view. A free member with zero conversations sees
 // the Premium upsell (there's nothing else to show them); anyone with at
-// least one conversation sees the real list, Premium or not — replying to
-// an existing conversation is always free, only starting a brand new one
-// needs Premium (enforced where a conversation actually gets created, in
-// HomeTabs' handleSendMessage, not here).
+// least one conversation sees the real list, Premium or not, so they can
+// see who messaged them and read it. Replying needs Premium (ChatThreadScreen
+// shows a "Get Premium to reply" button instead of the message box), and so
+// does starting a new conversation (HomeTabs' handleSendMessage).
 export default function ChatListScreen({ session, isPremium, onOpenThread, onUpgrade, onFindPeople }) {
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState([]);

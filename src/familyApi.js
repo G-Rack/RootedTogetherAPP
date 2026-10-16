@@ -5,6 +5,7 @@
 // Call packages are deliberately NOT here: per this round's explicit
 // decision, they stay a "coming soon" screen until real billing exists.
 import { supabase } from './supabaseClient';
+import { notifyPush } from './notifications';
 
 export const MAX_SIBLINGS = 6;
 
@@ -212,6 +213,7 @@ export async function sendFamilyGroupMessage(familyId, myAuthId, body) {
     .select('*')
     .single();
   if (error) throw error;
+  notifyPush({ kind: 'family_message', messageId: data.id });
   return data;
 }
 

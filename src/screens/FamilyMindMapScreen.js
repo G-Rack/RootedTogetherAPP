@@ -261,7 +261,7 @@ export default function FamilyMindMapScreen({
         </View>
       ) : (
         <View style={styles.headerRow}>
-          <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flex: 1, minWidth: 0, paddingRight: isLeader ? 126 : 44 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               {isLeader ? 'Your Spiritual Family' : `${myLeaderName || 'Your Mother'}'s Family`}
             </Text>
@@ -370,7 +370,10 @@ const styles = StyleSheet.create({
   headerBtn: { width: 32 },
   headerTitle: { fontFamily: serif, fontSize: 18, color: colors.brown, fontWeight: '700' },
   headerSubtitle: { fontSize: 11.5, color: colors.textSoft, marginTop: 2 },
-  headerActions: { flexDirection: 'row', gap: 6 },
+  // Pinned to the right edge instead of sitting in the flex flow: on Android
+  // the row could re-measure after leaving edit mode and push the icons off
+  // screen. The title column reserves matching space with paddingRight.
+  headerActions: { position: 'absolute', right: 0, top: 2, flexDirection: 'row', gap: 6 },
   iconBtn: { width: 36, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.creamDark },
   badge: {
     position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3,

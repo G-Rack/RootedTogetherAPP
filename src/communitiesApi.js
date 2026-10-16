@@ -6,6 +6,7 @@
 // comment in it; anyone signed in can join, browse, or mark a post
 // "Helpful").
 import { supabase } from './supabaseClient';
+import { hideBlocked } from './moderationApi';
 
 // The exact same list seekers already pick from at sign-up (SUPPORT_OPTIONS
 // in flows.js) — a community's topic deliberately reuses that taxonomy
@@ -141,7 +142,7 @@ export async function fetchCommunityPostsForCommunities(communityIds, limitCount
     .order('created_at', { ascending: false })
     .limit(limitCount);
   if (error) return [];
-  return data || [];
+  return hideBlocked(data || [], 'author_auth_id');
 }
 
 export async function fetchCommunityPosts(communityId, tag) {
@@ -153,7 +154,7 @@ export async function fetchCommunityPosts(communityId, tag) {
   if (tag) query = query.eq('tag', tag);
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  return hideBlocked(data || [], 'author_auth_id');
 }
 
 export async function createCommunityPost(communityId, myAuthId, tag, body) {
@@ -197,7 +198,7 @@ export async function fetchCommunityPostComments(postId) {
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return data || [];
+  return hideBlocked(data || [], 'author_auth_id');
 }
 
 export async function addCommunityPostComment(postId, myAuthId, body) {

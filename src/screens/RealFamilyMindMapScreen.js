@@ -190,7 +190,7 @@ export default function RealFamilyMindMapScreen({
         </View>
       ) : (
         <View style={styles.headerRow}>
-          <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flex: 1, minWidth: 0, paddingRight: isOwner ? 126 : 44 }}>
             <Text style={styles.headerTitle} numberOfLines={1}>{familyTitle}</Text>
             <Text style={styles.headerSubtitle}>{members.length} member{members.length === 1 ? '' : 's'}</Text>
           </View>
@@ -278,7 +278,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontFamily: serif, fontSize: 18, color: colors.brown, fontWeight: '700' },
   headerSubtitle: { fontSize: 11.5, color: colors.textSoft, marginTop: 2 },
-  headerActions: { flexDirection: 'row', gap: 6 },
+  // Pinned to the right edge instead of sitting in the flex flow: on Android
+  // the row could re-measure after leaving edit mode and push the icons off
+  // screen. The title column reserves matching space with paddingRight.
+  headerActions: { position: 'absolute', right: 0, top: 2, flexDirection: 'row', gap: 6 },
   iconBtn: { width: 36, height: 36, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.creamDark },
 
   editHeader: {

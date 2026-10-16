@@ -219,8 +219,8 @@ const styles = StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 14, paddingVertical: 11, marginBottom: 12,
   },
   searchInput: { flex: 1, fontSize: 14, color: colors.text, padding: 0 },
-  filterRow: { marginHorizontal: -24, marginBottom: 14, flexGrow: 0 },
-  filterRowContent: { flexDirection: 'row', paddingHorizontal: 24, gap: 8 },
+  filterRow: { marginHorizontal: -24, marginBottom: 14, flexGrow: 0, flexShrink: 0, height: 46 },
+  filterRowContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 8 },
   filterChip: {
     paddingVertical: 8, paddingHorizontal: 15, borderRadius: 999, borderWidth: 1.5,
     borderColor: colors.brownPale, backgroundColor: colors.white, overflow: 'visible',

@@ -83,7 +83,7 @@ export default function CreatePostScreen({ session, onBack, onPosted }) {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.wrap} behavior="padding">
       <ScrollView
         style={styles.wrap}
         keyboardShouldPersistTaps="handled"

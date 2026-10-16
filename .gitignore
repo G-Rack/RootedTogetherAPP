@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# store credentials (never commit)
+google-play-key*.json
+*service-account*.json
+*.keystore
+AuthKey_*.p8

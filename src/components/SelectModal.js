@@ -1,14 +1,16 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, serif } from '../theme';
 
 // A brand-styled dropdown replacement. Pure JS/RN, no native picker module —
 // keeps this app runnable in plain Expo Go with zero native-module version risk.
 export default function SelectModal({ visible, title, options, value, onSelect, onClose }) {
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+        <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]} onStartShouldSetResponder={() => true}>
           <Text style={styles.title}>{title}</Text>
           <FlatList
             data={options}

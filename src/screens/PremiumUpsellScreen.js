@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Linking } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
+import { WEB_BASE_URL } from '../config';
+import { supabase } from '../supabaseClient';
+import {
+  PLANS, isBillingConfigured, loadPlanPackages, purchasePlan, restorePurchases, storeLabel,
+} from '../billing';
 
 // The Premium upsell. Shown in two places that both gate on the same
 // membership: the Chat tab (a free member with zero conversations has
@@ -9,21 +14,19 @@ import { colors, serif } from '../theme';
 // when they tap "Send a message" on someone new) and the Family tab (a
 // free Seeker/Assistant with no Spiritual Family yet — browsing who's out
 // there is free, requesting to join is the Premium-gated action, same
-// shape as Chat's "replying is free, starting new isn't").
+// shape as Chat, where messaging and replying both need Premium).
 //
 // One shared component, not two copies, because it's one membership with
 // one set of perks — `context` only swaps the header, the lead icon, which
 // perk is listed first, and the reassurance footnote; the copy and the
 // perk list itself are otherwise identical by design.
 //
-// Real policy, straight from Girik: there's no billing anywhere in this
-// app yet, so "Upgrade to Premium" doesn't charge anything — it just sets
-// the person's is_premium flag on their own profiles row and continues
-// whatever they were trying to do (open the Chat tab's real list, start
-// that new conversation, or reveal the real Family empty-state so they can
-// go request to join one). That's a deliberate, explicit call for this
-// round, not a shortcut taken quietly — worth revisiting once real billing
-// exists.
+// Billing: Premium is a store subscription ($49/year or $5.99/month) sold
+// through Google Play / Apple via RevenueCat (see billing.js). After a
+// successful purchase, onUpgrade() runs exactly as before — it marks the
+// person Premium and continues whatever they were doing. Until RevenueCat
+// keys are filled in, the button falls back to that free upgrade so
+// testing isn't blocked.
 const PERKS = {
   conversations: 'Unlimited conversations with Leaders, Mothers, Pastors & Assistants',
   family: 'Join a Spiritual Family circle',
@@ -32,12 +35,38 @@ const PERKS = {
   priority: "Priority replies from Leaders' teams",
 };
 
+// Creator accounts (Spiritual Leaders, Mothers, Pastors, Churches) see the
+// same membership described in terms of what they do on the platform: reach
+// their people, lead a family, sell courses, run a community.
+const CREATOR_ROLES = new Set(['mother', 'pastor', 'influencer', 'church']);
+// Only Mothers and Pastors have a Spiritual Family to create and lead.
+const FAMILY_LEADER_ROLES = new Set(['mother', 'pastor']);
+
+const CREATOR_PERKS = {
+  conversations: 'Message seekers, assistants and fellow creators — unlimited conversations',
+  family: 'Create and lead your own Spiritual Family circle',
+  courses: 'Sell your courses and offerings in the Marketplace',
+  community: 'Start and lead communities around your ministry',
+  active: "See who's active right now",
+};
+
+const CREATOR_CONTEXT = {
+  chat: {
+    perkOrder: ['conversations', 'family', 'courses', 'community', 'active'],
+    footnote: 'Someone messaged you? You can read it for free — Premium lets you reply and reach out.',
+  },
+  family: {
+    perkOrder: ['family', 'conversations', 'courses', 'community', 'active'],
+    footnote: 'Browsing Spiritual Families is always free.',
+  },
+};
+
 const CONTEXT = {
   chat: {
     topBarTitle: 'Chat',
     icon: 'chatbubble-ellipses-outline',
     perkOrder: ['conversations', 'family', 'marketplace', 'active', 'priority'],
-    footnote: 'Already have a conversation someone started with you? Replying is always free.',
+    footnote: 'Someone messaged you? You can read it for free — Premium lets you reply.',
   },
   family: {
     topBarTitle: 'Family',
@@ -48,26 +77,140 @@ const CONTEXT = {
 };
 
 export default function PremiumUpsellScreen({ onUpgrade, targetName, context = 'chat' }) {
-  const [upgrading, setUpgrading] = useState(false);
+  const [plan, setPlan] = useState('yearly');
+  const [packages, setPackages] = useState({ yearly: null, monthly: null });
+  const [busy, setBusy] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
 
-  const cfg = CONTEXT[context] || CONTEXT.chat;
+  // null = still checking which kind of account this is.
+  const [isCreator, setIsCreator] = useState(null);
+  const [canLeadFamily, setCanLeadFamily] = useState(false);
+  const base = CONTEXT[context] || CONTEXT.chat;
+  const creatorCfg = CREATOR_CONTEXT[context] || CREATOR_CONTEXT.chat;
+  const cfg = isCreator
+    ? { ...base, ...creatorCfg, perkOrder: creatorCfg.perkOrder.filter((k) => k !== 'family' || canLeadFamily) }
+    : base;
+  const perks = isCreator ? CREATOR_PERKS : PERKS;
+  const billing = isBillingConfigured();
 
-  const subtitle = targetName
-    ? `Upgrade to start messaging ${targetName} — plus join a Spiritual Family circle and save on the Marketplace.`
-    : 'Upgrade to unlock direct messaging, join a Spiritual Family circle, and save on the Rooted Together Marketplace.';
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const uid = sess?.session?.user?.id;
+        if (!uid) { if (!cancelled) setIsCreator(false); return; }
+        const { data } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
+        if (!cancelled) {
+          setCanLeadFamily(FAMILY_LEADER_ROLES.has(data?.role));
+          setIsCreator(CREATOR_ROLES.has(data?.role));
+        }
+      } catch (e) {
+        if (!cancelled) setIsCreator(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!billing) return;
+    loadPlanPackages().then(setPackages);
+  }, [billing]);
+
+  let subtitle;
+  if (isCreator) {
+    subtitle = targetName
+      ? `Upgrade to message ${targetName}${canLeadFamily ? ', lead a Spiritual Family,' : ''} and grow your community.`
+      : (canLeadFamily
+        ? 'Grow your ministry on Rooted Together — message your community, lead a Spiritual Family, and share your courses and offerings.'
+        : 'Grow your ministry on Rooted Together — message your community and share your courses and offerings.');
+  } else {
+    subtitle = targetName
+      ? `Upgrade to message ${targetName}, join a Spiritual Family circle, and save on the Marketplace.`
+      : 'Message Leaders directly, join a Spiritual Family circle, and save on the Marketplace.';
+  }
+
+  // Store prices win once loaded (they're localized); otherwise our list prices.
+  const priceOf = (key) => packages[key]?.product?.priceString || PLANS[key].price;
+  const yearlyPerMonth = packages.yearly?.product?.pricePerMonthString || PLANS.yearly.perMonth;
+  const selected = PLANS[plan];
+  const ctaLabel = `Start Premium · ${priceOf(plan)}/${plan === 'yearly' ? 'year' : 'month'}`;
+  const finePrint = `${plan === 'yearly' ? `Billed ${priceOf('yearly')} once a year` : `Billed ${priceOf('monthly')} every month`} through ${storeLabel()}. Renews automatically; cancel anytime in your ${storeLabel()} subscriptions.`;
 
   async function handleUpgrade() {
-    setUpgrading(true);
+    setBusy(true);
     setError(null);
+    setNotice(null);
     try {
+      if (billing) {
+        const pkg = packages[plan];
+        if (!pkg) {
+          setError('Plans are still loading. Please try again in a moment.');
+          return;
+        }
+        const active = await purchasePlan(pkg);
+        if (!active) return; // closed the store sheet
+      }
       await onUpgrade();
     } catch (e) {
-      setError('Couldn’t upgrade right now. Please try again.');
+      setError('Couldn’t complete the purchase. Please try again.');
     } finally {
-      setUpgrading(false);
+      setBusy(false);
     }
   }
+
+  async function handleRestore() {
+    setRestoring(true);
+    setError(null);
+    setNotice(null);
+    try {
+      if (billing && (await restorePurchases())) {
+        await onUpgrade();
+      } else {
+        setNotice('No active Premium subscription was found for this account.');
+      }
+    } catch (e) {
+      setError('Couldn’t restore purchases. Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  const planCard = (key) => {
+    const on = plan === key;
+    const p = PLANS[key];
+    return (
+      <TouchableOpacity
+        key={key}
+        style={[styles.planCard, on && styles.planCardOn]}
+        onPress={() => setPlan(key)}
+        activeOpacity={0.85}
+        accessibilityRole="radio"
+        accessibilityState={{ checked: on }}
+      >
+        {key === 'yearly' && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>BEST VALUE · SAVE 32%</Text>
+          </View>
+        )}
+        <View style={[styles.radio, on && styles.radioOn]}>
+          {on && <View style={styles.radioDot} />}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.planName}>{p.label}</Text>
+          <Text style={styles.planSub}>
+            {key === 'yearly' ? `Just ${yearlyPerMonth} a month, billed yearly` : 'Flexible, cancel anytime'}
+          </Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={styles.planPrice}>{priceOf(key)}</Text>
+          <Text style={styles.planPeriod}>{p.period}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.wrap}>
@@ -75,32 +218,50 @@ export default function PremiumUpsellScreen({ onUpgrade, targetName, context = '
         <Text style={styles.topBarTitle}>{cfg.topBarTitle}</Text>
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.iconCircle}>
-          <Ionicons name={cfg.icon} size={30} color={colors.brown} />
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <View style={styles.iconCircle}>
+            <Ionicons name="star-outline" size={28} color={colors.brown} />
+          </View>
+          <Text style={styles.title}>{isCreator ? 'Unlock Creator Premium' : 'Unlock Premium'}</Text>
+          {isCreator === null ? null : <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>
-        <Text style={styles.title}>Unlock Premium</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+
+        <View style={styles.plans} accessibilityRole="radiogroup">
+          {planCard('yearly')}
+          {planCard('monthly')}
+        </View>
 
         <View style={styles.perksCard}>
-          {cfg.perkOrder.map((key) => (
+          <Text style={styles.perksLabel}>{isCreator ? 'EVERYTHING IN CREATOR PREMIUM' : 'EVERYTHING IN PREMIUM'}</Text>
+          {isCreator === null ? (
+            <ActivityIndicator color={colors.brown} />
+          ) : cfg.perkOrder.map((key) => (
             <View style={styles.perkRow} key={key}>
-              <Ionicons name="checkmark" size={17} color={colors.brown} />
-              <Text style={styles.perkText}>{PERKS[key]}</Text>
+              <Ionicons name="checkmark" size={18} color={colors.brown} />
+              <Text style={styles.perkText}>{perks[key]}</Text>
             </View>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.upgradeBtn} onPress={handleUpgrade} disabled={upgrading} activeOpacity={0.8}>
-          {upgrading ? (
-            <ActivityIndicator color={colors.white} />
-          ) : (
-            <Text style={styles.upgradeBtnText}>Upgrade to Premium</Text>
-          )}
+        <TouchableOpacity style={styles.upgradeBtn} onPress={handleUpgrade} disabled={busy} activeOpacity={0.85}>
+          {busy ? <ActivityIndicator color={colors.white} /> : <Text style={styles.upgradeBtnText}>{ctaLabel}</Text>}
         </TouchableOpacity>
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        <Text style={styles.footnote}>{cfg.footnote}</Text>
-      </View>
+        {notice ? <Text style={styles.noticeText}>{notice}</Text> : null}
+        <Text style={styles.finePrint}>{finePrint}</Text>
+
+        <View style={styles.links}>
+          <TouchableOpacity onPress={handleRestore} disabled={restoring} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+            {restoring ? <ActivityIndicator size="small" color={colors.brown} /> : <Text style={styles.linkText}>Restore purchases</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL(`${WEB_BASE_URL}/privacy`)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+            <Text style={styles.linkText}>Privacy</Text>
+          </TouchableOpacity>
+        </View>
+
+        {isCreator === null ? null : <Text style={styles.footnote}>{cfg.footnote}</Text>}
+      </ScrollView>
     </View>
   );
 }
@@ -109,24 +270,48 @@ const styles = StyleSheet.create({
   wrap: { flex: 1 },
   topBar: { paddingBottom: 14, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(107,66,38,0.1)' },
   topBarTitle: { fontFamily: serif, fontSize: 21, color: colors.brown, fontWeight: '700' },
-  body: { alignItems: 'center', paddingTop: 44, paddingHorizontal: 8 },
+  body: { paddingTop: 18, paddingBottom: 24, gap: 18 },
+  hero: { alignItems: 'center', gap: 8 },
   iconCircle: {
-    width: 72, height: 72, borderRadius: 999, backgroundColor: colors.creamDark,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 6,
+    width: 60, height: 60, borderRadius: 999, backgroundColor: colors.creamDark,
+    alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontFamily: serif, fontSize: 19, color: colors.brown, fontWeight: '700', marginTop: 6 },
-  subtitle: { fontSize: 13.5, color: colors.textSoft, textAlign: 'center', lineHeight: 20, marginTop: 12 },
-  perksCard: {
-    alignSelf: 'stretch', backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(107,66,38,0.12)',
-    borderRadius: 14, padding: 16, gap: 10, marginTop: 20,
+  title: { fontFamily: serif, fontSize: 23, color: colors.brown, fontWeight: '700', marginTop: 4 },
+  subtitle: { fontSize: 14, color: colors.textSoft, textAlign: 'center', lineHeight: 20, paddingHorizontal: 4 },
+  plans: { gap: 12, marginTop: 4 },
+  planCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 72, padding: 16, borderRadius: 16,
+    borderWidth: 1, borderColor: colors.brownPale, backgroundColor: colors.white, overflow: 'visible',
   },
-  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  perkText: { fontSize: 13, color: colors.text, flexShrink: 1 },
+  planCardOn: { borderWidth: 2, borderColor: colors.brown, backgroundColor: colors.cream },
+  badge: {
+    position: 'absolute', top: -11, left: 16, backgroundColor: colors.brown, borderRadius: 999,
+    paddingVertical: 4, paddingHorizontal: 10,
+  },
+  badgeText: { color: colors.white, fontSize: 10.5, fontWeight: '700', letterSpacing: 0.5 },
+  radio: {
+    width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.brownPale,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  radioOn: { borderColor: colors.brown },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brown },
+  planName: { fontSize: 16, fontWeight: '700', color: colors.text },
+  planSub: { fontSize: 12.5, color: colors.textSoft, marginTop: 2 },
+  planPrice: { fontSize: 19, fontWeight: '700', color: colors.text },
+  planPeriod: { fontSize: 11.5, color: colors.textSoft, marginTop: 1 },
+  perksCard: { backgroundColor: colors.cream, borderRadius: 16, padding: 16, gap: 11 },
+  perksLabel: { fontSize: 11.5, fontWeight: '700', letterSpacing: 0.6, color: colors.brown },
+  perkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  perkText: { fontSize: 14, lineHeight: 19, color: colors.text, flexShrink: 1 },
   upgradeBtn: {
-    alignSelf: 'stretch', backgroundColor: colors.brown, borderRadius: 999, paddingVertical: 13,
-    alignItems: 'center', marginTop: 18, overflow: 'visible',
+    backgroundColor: colors.brown, borderRadius: 999, minHeight: 54, justifyContent: 'center',
+    alignItems: 'center', overflow: 'visible',
   },
-  upgradeBtnText: { color: colors.white, fontSize: 14.5, fontWeight: '700' },
-  footnote: { fontSize: 11.5, color: colors.textSoft, textAlign: 'center', marginTop: 10 },
-  errorText: { fontSize: 12.5, color: colors.errorText, textAlign: 'center', marginTop: 14 },
+  upgradeBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
+  finePrint: { fontSize: 11.5, lineHeight: 16, color: colors.textSoft, textAlign: 'center', marginTop: -6 },
+  links: { flexDirection: 'row', justifyContent: 'center', gap: 22 },
+  linkText: { fontSize: 12.5, fontWeight: '700', color: colors.brown },
+  footnote: { fontSize: 12, color: colors.textSoft, textAlign: 'center' },
+  errorText: { fontSize: 12.5, color: colors.errorText, textAlign: 'center', marginTop: -6 },
+  noticeText: { fontSize: 12.5, color: colors.textSoft, textAlign: 'center', marginTop: -6 },
 });

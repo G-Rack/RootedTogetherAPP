@@ -2,7 +2,9 @@
 // and PublicProfileScreen (a Spiritual Leader's posts show up in both) so
 // the fetch/like/comment logic only exists once.
 import { supabase } from './supabaseClient';
+import { notifyPush } from './notifications';
 import { UPDATE_PROFILE_PICTURE_ENDPOINT, DELETE_ACCOUNT_ENDPOINT } from './config';
+import { hideBlocked } from './moderationApi';
 
 // Fetches the feed, or one author's posts when authorId (their AUTH user
 // id — posts.author_auth_id, same id used everywhere else: comments, likes,
@@ -23,7 +25,8 @@ export async function fetchPosts({ authorId } = {}) {
   if (authorId) query = query.eq('author_auth_id', authorId);
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  // People I've blocked (or who've blocked me) never show up.
+  return hideBlocked(data || [], 'author_auth_id');
 }
 
 // Batch-request short-lived signed URLs for a set of private-bucket paths —
@@ -80,7 +83,7 @@ export async function fetchComments(postId) {
     .eq('post_id', postId)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return data || [];
+  return hideBlocked(data || [], 'author_auth_id');
 }
 
 export async function addComment(postId, myAuthId, body) {
@@ -190,6 +193,7 @@ export async function getFollowerCount(followeeAuthId) {
 export async function followPerson(myAuthId, followeeAuthId) {
   const { error } = await supabase.from('follows').insert({ follower_auth_id: myAuthId, followee_auth_id: followeeAuthId });
   if (error) throw error;
+  notifyPush({ kind: 'follow', followeeAuthId });
 }
 
 export async function unfollowPerson(myAuthId, followeeAuthId) {
@@ -304,4 +308,18 @@ export async function deleteMyAccount(session) {
     throw new Error(data.error || 'Couldn’t delete your account right now. Please try again.');
   }
   return true;
+}
+
+// Everyone who liked one post, newest first, resolved to displayable
+// directory_listing rows (name, role, avatar path) for the "Liked by" sheet.
+export async function fetchPostLikers(postId) {
+  const { data, error } = await supabase
+    .from('post_likes')
+    .select('user_auth_id, created_at')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: false });
+  if (error || !data) return [];
+  const visible = await hideBlocked(data, 'user_auth_id');
+  const authors = await fetchAuthorsByAuthId(visible.map((r) => r.user_auth_id));
+  return visible.map((r) => authors[r.user_auth_id]).filter(Boolean);
 }

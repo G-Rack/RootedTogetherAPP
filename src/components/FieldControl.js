@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Keyboard } from 'react-native';
 import SelectModal from './SelectModal';
 import CalendarPickerModal from './CalendarPickerModal';
 import ImagePickerField from './ImagePickerField';
@@ -71,7 +71,7 @@ export default function FieldControl({ field, value, onChange }) {
 
       {field.type === 'date' && (
         <>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setDateOpen(true)}>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => { Keyboard.dismiss(); setDateOpen(true); }}>
             <Text style={value ? styles.selectValue : styles.selectPlaceholder}>
               {value ? formatDateHuman(value) : 'Select a date…'}
             </Text>
@@ -153,7 +153,7 @@ export default function FieldControl({ field, value, onChange }) {
 
       {field.type === 'select' && (
         <>
-          <TouchableOpacity style={styles.selectBtn} onPress={() => setPickerOpen(true)}>
+          <TouchableOpacity style={styles.selectBtn} onPress={() => { Keyboard.dismiss(); setPickerOpen(true); }}>
             <Text style={value ? styles.selectValue : styles.selectPlaceholder}>
               {value || 'Select…'}
             </Text>

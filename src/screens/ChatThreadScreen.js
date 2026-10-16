@@ -6,7 +6,9 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { ROLE_LABELS } from '../roleLabels';
-import { fetchMessages, sendMessage, markConversationRead, subscribeToMessages, unsubscribe } from '../chatApi';
+import { fetchMessages, sendMessage, markConversationRead, subscribeToMessages, unsubscribe, otherAuthIdFor } from '../chatApi';
+import ReportBlockMenu from '../components/ReportBlockMenu';
+import { CONTENT_TYPES } from '../moderationApi';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -28,7 +30,10 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // position and the keyboard's own reported height, then padding by
 // exactly the overlap between them, sidesteps whatever was confusing the
 // built-in component and is what actually moves on a real phone.
-export default function ChatThreadScreen({ session, conversation, otherPerson, onBack, initialDraft }) {
+// Replying needs Premium (Girik's rule: anyone can receive and read a
+// message, but answering requires a subscription). Without it, the message
+// box is replaced by a button that opens the Premium screen.
+export default function ChatThreadScreen({ session, conversation, otherPerson, onBack, initialDraft, isPremium = true, onRequestUpgrade }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   // Pre-filled and fully editable — used by an Additional Services
@@ -40,6 +45,7 @@ export default function ChatThreadScreen({ session, conversation, otherPerson, o
   const listRef = useRef(null);
   const wrapRef = useRef(null);
   const myAuthId = session?.user?.id;
+  const otherAuthId = otherAuthIdFor(conversation, myAuthId);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -124,7 +130,16 @@ export default function ChatThreadScreen({ session, conversation, otherPerson, o
             <Text style={styles.headerRole}>{ROLE_LABELS[otherPerson.role] || otherPerson.role}</Text>
           )}
         </View>
-        <View style={styles.backBtn} />
+        <View style={[styles.backBtn, { alignItems: 'flex-end' }]}>
+          <ReportBlockMenu
+            myAuthId={myAuthId}
+            targetAuthId={otherAuthId}
+            targetName={otherPerson?.name}
+            contentType={CONTENT_TYPES.profile}
+            noun="this person"
+            onBlocked={onBack}
+          />
+        </View>
       </View>
 
       {loading ? (
@@ -147,15 +162,39 @@ export default function ChatThreadScreen({ session, conversation, otherPerson, o
                 <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
                   <Text style={mine ? styles.bubbleTextMine : styles.bubbleTextTheirs}>{item.body}</Text>
                 </View>
-                <Text style={[styles.timeText, mine ? styles.timeTextMine : styles.timeTextTheirs]}>
-                  {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                </Text>
+                <View style={styles.timeRow}>
+                  <Text style={[styles.timeText, mine ? styles.timeTextMine : styles.timeTextTheirs]}>
+                    {new Date(item.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </Text>
+                  {!mine && (
+                    <ReportBlockMenu
+                      myAuthId={myAuthId}
+                      targetAuthId={item.sender_auth_id}
+                      targetName={otherPerson?.name}
+                      contentType={CONTENT_TYPES.directMessage}
+                      contentId={item.id}
+                      noun="message"
+                      size={14}
+                      onReported={() => setMessages((prev) => prev.filter((m) => m.id !== item.id))}
+                      onBlocked={onBack}
+                    />
+                  )}
+                </View>
               </View>
             );
           }}
         />
       )}
 
+      {!isPremium ? (
+        <View style={styles.lockedBar}>
+          <TouchableOpacity style={styles.lockedBtn} onPress={onRequestUpgrade} activeOpacity={0.85}>
+            <Ionicons name="lock-closed-outline" size={16} color={colors.white} />
+            <Text style={styles.lockedBtnText}>Get Premium to reply</Text>
+          </TouchableOpacity>
+          <Text style={styles.lockedNote}>Replying to messages is part of Premium.</Text>
+        </View>
+      ) : (
       <View style={styles.inputBar}>
         <TextInput
           style={styles.input}
@@ -174,12 +213,22 @@ export default function ChatThreadScreen({ session, conversation, otherPerson, o
           <Ionicons name="send" size={17} color={colors.white} />
         </TouchableOpacity>
       </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1 },
+  lockedBar: {
+    borderTopWidth: 1, borderTopColor: 'rgba(107,66,38,0.1)', paddingTop: 12, paddingBottom: 6, gap: 6, alignItems: 'center',
+  },
+  lockedBtn: {
+    alignSelf: 'stretch', flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.brown, borderRadius: 999, minHeight: 48, overflow: 'visible',
+  },
+  lockedBtnText: { color: colors.white, fontSize: 15, fontWeight: '700' },
+  lockedNote: { fontSize: 12, color: colors.textSoft },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
   topBar: {
     flexDirection: 'row', alignItems: 'center', paddingBottom: 14, marginBottom: 4,
@@ -200,6 +249,7 @@ const styles = StyleSheet.create({
   bubbleTheirs: { backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(107,66,38,0.12)', borderBottomLeftRadius: 4 },
   bubbleTextMine: { color: colors.white, fontSize: 13.5, lineHeight: 19 },
   bubbleTextTheirs: { color: colors.text, fontSize: 13.5, lineHeight: 19 },
+  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   timeText: { fontSize: 10.5, color: colors.textSoft },
   timeTextMine: { marginRight: 4 },
   timeTextTheirs: { marginLeft: 4 },

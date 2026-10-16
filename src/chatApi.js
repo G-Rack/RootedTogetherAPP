@@ -3,6 +3,8 @@
 // PremiumUpsellScreen for the actual policy). Kept in its own file the same
 // way postsApi.js holds all the Explore data access.
 import { supabase } from './supabaseClient';
+import { fetchBlockedIdSet, withoutBlocked } from './moderationApi';
+import { notifyPush } from './notifications';
 
 // --- Premium ---
 // There's no real billing anywhere in the app yet. "Upgrading" just flips
@@ -84,7 +86,10 @@ export async function fetchConversations(myAuthId) {
     .or(`user_a.eq.${myAuthId},user_b.eq.${myAuthId}`)
     .order('last_message_at', { ascending: false });
   if (error || !data) return [];
-  return data;
+  // Conversations with someone I've blocked (or who blocked me) disappear
+  // from the list; unblocking brings them back.
+  const blocked = await fetchBlockedIdSet();
+  return data.filter((c) => !blocked.has(otherAuthIdFor(c, myAuthId)));
 }
 
 export function otherAuthIdFor(conversation, myAuthId) {
@@ -111,7 +116,7 @@ export async function fetchMessages(conversationId) {
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return data || [];
+  return withoutBlocked(data || [], 'sender_auth_id', await fetchBlockedIdSet());
 }
 
 export async function sendMessage(conversationId, myAuthId, body) {
@@ -136,6 +141,7 @@ export async function sendMessage(conversationId, myAuthId, body) {
     })
     .eq('id', conversationId);
 
+  notifyPush({ kind: 'message', messageId: data.id });
   return data;
 }
 

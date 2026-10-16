@@ -9,7 +9,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rootedtogether.app",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.rootedtogether.app",
@@ -19,10 +22,42 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#6B4226",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Rooted Together needs access to your photos so you can add pictures to your profile and offerings."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8f2fcba7-57ea-4368-b6ff-382ecadb6202"
+      }
+    },
+    "owner": "rooted-togethers-team",
+    "updates": {
+      "url": "https://u.expo.dev/8f2fcba7-57ea-4368-b6ff-382ecadb6202"
     }
   }
 }

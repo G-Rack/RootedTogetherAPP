@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, serif } from '../theme';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -14,6 +15,7 @@ function daysInMonth(year, month) {
 // native-binary version mismatch. Value in/out is an ISO string
 // ("YYYY-MM-DD"), which is what Airtable's Date field type expects.
 export default function CalendarPickerModal({ visible, value, onSelect, onClose }) {
+  const insets = useSafeAreaInsets();
   const today = useMemo(() => new Date(), []);
   const initial = value ? new Date(value + 'T00:00:00') : new Date(today.getFullYear() - 25, today.getMonth(), 1);
   const [viewYear, setViewYear] = useState(initial.getFullYear());
@@ -49,9 +51,9 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose}>
-        <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+        <View style={[styles.sheet, { paddingBottom: 20 + insets.bottom }]} onStartShouldSetResponder={() => true}>
           <View style={styles.header}>
             <TouchableOpacity onPress={() => goMonth(-1)} style={styles.navBtn}>
               <Text style={styles.navText}>‹</Text>

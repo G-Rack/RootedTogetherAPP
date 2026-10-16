@@ -1,9 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import PostGridCell, { postGridRowStyle, gridBleedListStyle, gridHeaderPad } from '../components/PostGridCell';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { ROLE_LABELS, initialsFor, handleFor, formatCount } from '../roleLabels';
-import PostCard from '../components/PostCard';
+import PostFeedView from '../components/PostFeedView';
+import ReportBlockMenu from '../components/ReportBlockMenu';
+import { CONTENT_TYPES } from '../moderationApi';
 import {
   fetchPosts, fetchSignedUrls, fetchLikeMeta, fetchCommentCounts, toggleLike, fetchDirectoryPerson,
   getFollowStatus, getFollowerCount, followPerson, unfollowPerson, getPostCount, fetchMyDirectoryPerson,
@@ -29,37 +32,6 @@ const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
 // their public profile shows their posts and post count.
 const POSTING_ROLES = FOLLOWABLE_ROLES;
 
-// Personal, request-based services offered on a Leader/Mother/Pastor's
-// profile — distinct from the Spiritual Family flow above (which is a
-// standing membership) and from Offerings (which are pre-built, paid
-// content). There's no dedicated backend for these yet, so a request is
-// just a Chat message with a pre-filled draft the Seeker can edit before
-// sending — reuses the existing Chat/Premium infrastructure instead of
-// inventing a new table and flow for something this small. Shown only for
-// Approved leaders, same reasoning as canShowFamilyCard below.
-const SERVICES = [
-  {
-    key: 'prayer',
-    icon: 'flame-outline',
-    title: 'Daily Prayers',
-    description: 'Ask them to hold something specific in prayer each day this week.',
-    draft: (name) => `Hi ${name}, I'd love to request Daily Prayers. Here's what I'd like you to hold in prayer this week: `,
-  },
-  {
-    key: 'meditation',
-    icon: 'moon-outline',
-    title: 'Meditation',
-    description: 'A guided meditation for peace, love, or provision — whichever you need.',
-    draft: (name) => `Hi ${name}, I'd like to request a guided Meditation. What I'm seeking (peace, love, or provision): `,
-  },
-  {
-    key: 'special',
-    icon: 'mail-outline',
-    title: 'Special Requests',
-    description: 'Something specific on your heart that doesn’t fit the above? Send a private request.',
-    draft: (name) => `Hi ${name}, I have a Special Request: `,
-  },
-];
 
 // A read-only look at someone else's profile — reached by tapping a
 // Directory card or a post's author.
@@ -84,8 +56,15 @@ const SERVICES = [
 // show rows a person's role actually has data for (nothing invented) — see
 // the "Directory" section of Supabase_Backend_Guide.md for exactly which
 // field maps to which role.
-export default function PublicProfileScreen({ role, id, session, onBack, onOpenComments, onSendMessage, onOpenCommunity }) {
+export default function PublicProfileScreen({ role, id, session, onBack, onOpenComments, onSendMessage, onOpenCommunity, onOpenProfile }) {
   const [person, setPerson] = useState(null); // undefined = loading, null = not found
+  // Same "… more" bio behaviour as the user's own ProfileScreen: a hidden
+  // full-height copy measures whether the 3-line clamp is cutting text off.
+  const [bioExpanded, setBioExpanded] = useState(false);
+  // Instagram-style: posts show as a 3-column grid; tapping one opens the
+  // full-size feed of their posts, scrolled to the one you tapped.
+  const [feedPostId, setFeedPostId] = useState(null);
+  const [bioTruncatable, setBioTruncatable] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [posts, setPosts] = useState(null);
   const [imageUrls, setImageUrls] = useState({});
@@ -117,18 +96,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
     && FAMILY_REQUESTER_ROLES.includes(myRole)
     && person?.vetting_status === 'Approved';
 
-  // Any signed-in visitor viewing a different, Approved Leader/Mother/
-  // Pastor can send a service request — not limited to Seekers/Assistants
-  // the way Spiritual Family membership is, since these are one-off asks
-  // rather than a standing relationship.
-  const canShowServices = isFollowable
-    && person?.auth_user_id !== myAuthId
-    && person?.vetting_status === 'Approved';
 
-  function handleRequestService(service) {
-    if (!person) return;
-    onSendMessage?.(person, service.draft(person.name || 'there'));
-  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -277,17 +245,27 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
           <Text style={styles.backChevron}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.topBarTitle} numberOfLines={1}>{loading ? '' : (person?.name || 'Profile')}</Text>
-        {isFollowable && shopHandle ? (
-          <TouchableOpacity
-            onPress={() => Linking.openURL(`${WEB_BASE_URL}/creator/${shopHandle}`)}
-            style={styles.backBtn}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="storefront-outline" size={20} color={colors.brown} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.backBtn} />
-        )}
+        <View style={styles.topBarRight}>
+          {isFollowable && shopHandle ? (
+            <TouchableOpacity
+              onPress={() => Linking.openURL(`${WEB_BASE_URL}/creator/${shopHandle}`)}
+              style={styles.backBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="storefront-outline" size={20} color={colors.brown} />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.backBtn} />
+          )}
+          <ReportBlockMenu
+            myAuthId={myAuthId}
+            targetAuthId={person?.auth_user_id}
+            targetName={person?.name}
+            contentType={CONTENT_TYPES.profile}
+            noun="profile"
+            onBlocked={onBack}
+          />
+        </View>
       </View>
 
       {loading ? (
@@ -314,7 +292,26 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
             </View>
             <Text style={styles.handleText}>{handleFor(person.name)}</Text>
             {person.story ? (
-              <Text style={styles.bioText} numberOfLines={3}>{person.story}</Text>
+              <View style={styles.bioWrap}>
+                <Text
+                  style={[styles.bioText, styles.bioMeasure]}
+                  onTextLayout={(e) => setBioTruncatable(e.nativeEvent.lines.length > 3)}
+                >
+                  {person.story}
+                </Text>
+                <Text style={styles.bioText} numberOfLines={bioExpanded ? undefined : 3}>
+                  {person.story}
+                </Text>
+                {bioTruncatable && (
+                  <TouchableOpacity
+                    onPress={() => setBioExpanded((v) => !v)}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 4, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text style={styles.bioMoreText}>{bioExpanded ? 'Show less' : '… more'}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             ) : null}
             {person.vetting_status === 'Needs Vetting' && (
               <View style={styles.pendingBadge}>
@@ -387,32 +384,6 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
               </View>
             )}
 
-            {canShowServices && (
-              <View style={styles.servicesBox}>
-                <Text style={styles.servicesTitle}>Additional Services</Text>
-                <Text style={styles.servicesSubtitle}>
-                  Personal requests held between you and {person.name}. Tap one to send it — they’ll answer you in Chat.
-                </Text>
-                {SERVICES.map((service, i) => (
-                  <View key={service.key} style={[styles.serviceRow, i === SERVICES.length - 1 && styles.serviceRowLast]}>
-                    <View style={styles.serviceIcon}>
-                      <Ionicons name={service.icon} size={18} color={colors.brown} />
-                    </View>
-                    <View style={styles.serviceCopy}>
-                      <Text style={styles.serviceTitle}>{service.title}</Text>
-                      <Text style={styles.serviceDescription}>{service.description}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.serviceBtn}
-                      onPress={() => handleRequestService(service)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.serviceBtnText}>Request</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            )}
           </View>
 
           <View style={styles.tabRow}>
@@ -498,18 +469,38 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
             <TouchableOpacity style={styles.sendBtn} activeOpacity={0.8} onPress={() => onSendMessage?.(person)}>
               <Text style={styles.sendBtnText}>Send a message</Text>
             </TouchableOpacity>
-            <Text style={styles.sendCaption}>Starting a new conversation requires Premium — replying is always free</Text>
+            <Text style={styles.sendCaption}>Messaging and replying are part of Premium</Text>
           </View>
         </>
       )}
     </View>
   );
 
+  if (feedPostId && posts && posts.length) {
+    return (
+      <PostFeedView
+        session={session}
+        posts={posts}
+        startPostId={feedPostId}
+        author={person}
+        authorAvatarUrl={avatarUrl}
+        imageUrls={imageUrls}
+        onBack={() => setFeedPostId(null)}
+        onOpenPerson={(p) => onOpenProfile?.(p.role, p.id)}
+        onPostRemoved={(postId) => setPosts((list) => (list || []).filter((x) => x.id !== postId))}
+        onBlocked={onBack}
+      />
+    );
+  }
+
   return (
     <FlatList
-      style={styles.wrap}
-      ListHeaderComponent={header}
+      key={showPostsList ? 'grid' : 'list'}
+      style={[styles.wrap, showPostsList && gridBleedListStyle]}
+      ListHeaderComponent={showPostsList ? <View style={gridHeaderPad}>{header}</View> : header}
       data={listData}
+      numColumns={showPostsList ? 3 : 1}
+      columnWrapperStyle={showPostsList && listData.length ? postGridRowStyle : undefined}
       keyExtractor={(item) => item.id}
       ListEmptyComponent={
         !loading && person && emptyMessage ? (
@@ -532,19 +523,11 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
             </TouchableOpacity>
           );
         }
-        const meta = likeMeta[item.id] || { count: 0, likedByMe: false };
         return (
-          <PostCard
+          <PostGridCell
             post={item}
-            author={person}
             imageUrl={item.image_path ? imageUrls[item.image_path] : null}
-            authorAvatarUrl={avatarUrl}
-            liked={meta.likedByMe}
-            likeCount={meta.count}
-            commentCount={commentCounts[item.id] || 0}
-            onToggleLike={() => handleToggleLike(item.id)}
-            onOpenComments={() => onOpenComments(item.id)}
-            onOpenAuthor={() => {}}
+            onPress={() => setFeedPostId(item.id)}
           />
         );
       }}
@@ -563,6 +546,7 @@ const styles = StyleSheet.create({
     paddingBottom: 14, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(107,66,38,0.1)',
   },
   backBtn: { width: 32 },
+  topBarRight: { minWidth: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 },
   backChevron: { fontSize: 26, color: colors.brown, fontWeight: '700' },
   topBarTitle: { flex: 1, textAlign: 'center', fontFamily: serif, fontSize: 17, color: colors.brown, fontWeight: '700' },
 
@@ -580,6 +564,9 @@ const styles = StyleSheet.create({
   verifiedIcon: { marginLeft: 5 },
   handleText: { fontSize: 13.5, color: colors.textSoft, marginTop: 3 },
   bioText: { fontSize: 13.5, color: colors.text, textAlign: 'center', marginTop: 10, lineHeight: 19 },
+  bioWrap: { alignItems: 'center', alignSelf: 'stretch', position: 'relative' },
+  bioMeasure: { position: 'absolute', top: 0, left: 0, right: 0, opacity: 0, zIndex: -1 },
+  bioMoreText: { fontSize: 12.5, color: colors.textSoft, fontWeight: '700', marginTop: 4 },
   statsRow: { flexDirection: 'row', marginTop: 18, gap: 36 },
   statItem: { alignItems: 'center' },
   statValue: { fontSize: 17, color: colors.brown, fontWeight: '700' },
@@ -608,32 +595,8 @@ const styles = StyleSheet.create({
     paddingVertical: 11, alignItems: 'center', overflow: 'visible',
   },
   familyBtnText: { color: colors.brown, fontSize: 13, fontWeight: '700' },
-  servicesBox: {
-    alignSelf: 'stretch', marginTop: 14, backgroundColor: colors.creamDark, borderRadius: 16,
-    borderWidth: 1, borderColor: 'rgba(107,66,38,0.14)', padding: 14,
-  },
-  servicesTitle: { fontFamily: serif, fontSize: 15.5, color: colors.brown, fontWeight: '700' },
-  servicesSubtitle: { fontSize: 12, color: colors.textSoft, marginTop: 3, lineHeight: 17 },
-  serviceRow: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: 'rgba(107,66,38,0.12)', marginTop: 4,
-  },
-  serviceRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
-  serviceIcon: {
-    width: 36, height: 36, borderRadius: 999, backgroundColor: colors.white,
-    alignItems: 'center', justifyContent: 'center', overflow: 'visible',
-  },
-  serviceCopy: { flex: 1 },
-  serviceTitle: { fontSize: 13.5, color: colors.text, fontWeight: '700' },
-  serviceDescription: { fontSize: 12, color: colors.textSoft, marginTop: 2, lineHeight: 16.5 },
-  serviceBtn: {
-    borderWidth: 1, borderColor: colors.brownPale, backgroundColor: colors.white, borderRadius: 999,
-    paddingVertical: 7, paddingHorizontal: 13, alignSelf: 'center', overflow: 'visible',
-  },
-  serviceBtnText: { fontSize: 12, color: colors.brown, fontWeight: '700' },
   tabRow: {
     flexDirection: 'row', borderTopWidth: 1, borderTopColor: 'rgba(107,66,38,0.1)',
-    marginHorizontal: -24, paddingHorizontal: 24,
   },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
   tabLabel: { fontSize: 13.5, color: colors.textSoft, fontWeight: '600' },

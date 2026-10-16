@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Linking } from 'react-native';
+import PostFeedView from '../components/PostFeedView';
+import PostGridCell, { postGridRowStyle, gridBleedListStyle, gridHeaderPad } from '../components/PostGridCell';
 import * as ImagePicker from 'expo-image-picker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
@@ -10,6 +12,7 @@ import {
 } from '../postsApi';
 import { fetchMyCommunities, getGrowthScore } from '../communitiesApi';
 import { WEB_BASE_URL } from '../config';
+import BlockedUsersScreen from './BlockedUsersScreen';
 import { fetchMyFullProfileRow, hasCompletedOptionalDetails } from '../profileEditing';
 import EditProfileScreen from './EditProfileScreen';
 import ChangePasswordScreen from './ChangePasswordScreen';
@@ -44,7 +47,10 @@ function SettingsRow({ label, onPress, last, danger, showDot }) {
 // had a Log out button. It's built around the same directory_listing view
 // every other profile screen already reads from, just filtered to the
 // signed-in person's own auth_user_id (see fetchMyDirectoryPerson).
-export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenComments, onOpenCommunity, onCreateCommunity }) {
+export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenComments, onOpenCommunity, onCreateCommunity, onOpenProfile }) {
+  // Instagram-style: tapping a grid post opens the full-size Posts view
+  // (PostFeedView) scrolled to that post.
+  const [feedPostId, setFeedPostId] = useState(null);
   const [person, setPerson] = useState(undefined); // undefined = loading, null = no row found
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -56,6 +62,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showPayouts, setShowPayouts] = useState(false);
+  const [showBlocked, setShowBlocked] = useState(false);
   const [myCommunities, setMyCommunities] = useState(null); // null = loading
   const [growthScore, setGrowthScore] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -244,6 +251,14 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
     return <PayoutsReferralsScreen onBack={() => setShowPayouts(false)} person={person} />;
   }
 
+  if (showBlocked) {
+    return (
+      <View style={styles.wrap}>
+        <BlockedUsersScreen onBack={() => setShowBlocked(false)} />
+      </View>
+    );
+  }
+
   if (showSettings) {
     return (
       <View style={styles.wrap}>
@@ -276,6 +291,8 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
 
         <Text style={styles.settingsSectionLabel}>More</Text>
         <View style={styles.settingsCard}>
+          <SettingsRow label="Blocked users" onPress={() => setShowBlocked(true)} />
+          <SettingsRow label="Privacy Policy" onPress={() => Linking.openURL(`${WEB_BASE_URL}/privacy`)} />
           <SettingsRow label="Notifications" onPress={() => notReady('Notifications')} />
           <SettingsRow label="Help & Support" onPress={() => notReady('Help & Support')} last />
         </View>
@@ -445,16 +462,31 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
       </View>
     );
 
+    if (feedPostId && posts.length) {
+      return (
+        <PostFeedView
+          session={session}
+          posts={posts}
+          startPostId={feedPostId}
+          author={person}
+          authorAvatarUrl={avatarUrl}
+          imageUrls={imageUrls}
+          onBack={() => setFeedPostId(null)}
+          onOpenPerson={(p) => onOpenProfile?.(p.role, p.id)}
+        />
+      );
+    }
+
     return (
       <View style={{ flex: 1 }}>
         <FlatList
           key={activeTab}
-          style={styles.wrap}
-          ListHeaderComponent={header}
+          style={[styles.wrap, showPostGrid && gridBleedListStyle]}
+          ListHeaderComponent={showPostGrid ? <View style={gridHeaderPad}>{header}</View> : header}
           data={gridData}
           keyExtractor={(item) => item.id}
           numColumns={showCommunitiesList ? 1 : 3}
-          columnWrapperStyle={!showCommunitiesList && gridData.length ? styles.gridRow : undefined}
+          columnWrapperStyle={!showCommunitiesList && gridData.length ? postGridRowStyle : undefined}
           ListEmptyComponent={
             emptyMessage
               ? <Text style={styles.emptyPostsText}>{emptyMessage}</Text>
@@ -476,15 +508,11 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
                 <Ionicons name="chevron-forward" size={16} color={colors.textSoft} />
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.gridCell} activeOpacity={0.8} onPress={() => onOpenComments(item.id)}>
-                {item.image_path && imageUrls[item.image_path] ? (
-                  <Image source={{ uri: imageUrls[item.image_path] }} style={styles.gridImg} />
-                ) : (
-                  <View style={styles.gridTextCell}>
-                    <Text style={styles.gridTextCellBody} numberOfLines={4}>{item.body}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+              <PostGridCell
+                post={item}
+                imageUrl={item.image_path ? imageUrls[item.image_path] : null}
+                onPress={() => setFeedPostId(item.id)}
+              />
             )
           )}
         />
@@ -496,7 +524,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
             activeOpacity={0.85}
             accessibilityLabel="New Post"
           >
-            <Ionicons name="add" size={20} color={colors.white} />
+            <Ionicons name="add" size={24} color={colors.white} />
           </TouchableOpacity>
         )}
       </View>
@@ -521,8 +549,12 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
               <Text style={styles.avatarFallbackText}>{initialsFor(person.name)}</Text>
             </View>
           )}
-          <TouchableOpacity style={styles.avatarEditBadge} onPress={() => setShowEditProfile(true)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-            <Ionicons name="pencil" size={11} color={colors.white} />
+          <TouchableOpacity style={styles.avatarEditBadge} onPress={handleChangePhoto} disabled={uploadingPhoto} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+            {uploadingPhoto ? (
+              <ActivityIndicator size="small" color={colors.white} />
+            ) : (
+              <Ionicons name="pencil" size={11} color={colors.white} />
+            )}
           </TouchableOpacity>
         </View>
         <Text style={styles.name}>{person.name || 'Unnamed'}</Text>
@@ -700,7 +732,7 @@ const styles = StyleSheet.create({
   // above the grid. Lives in the bottom-right corner of the Posts tab only,
   // absolutely positioned over the FlatList (its parent View wraps both).
   newPostFab: {
-    position: 'absolute', right: 18, bottom: -14, width: 42, height: 42, borderRadius: 21,
+    position: 'absolute', right: 18, bottom: 18, width: 48, height: 48, borderRadius: 24,
     backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.22, shadowRadius: 6,
     elevation: 5,

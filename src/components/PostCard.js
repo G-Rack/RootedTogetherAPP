@@ -1,27 +1,80 @@
-import React from 'react';
-import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, TouchableOpacity, StyleSheet, Share, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { initialsFor, ROLE_LABELS } from '../roleLabels';
+import ReportBlockMenu from './ReportBlockMenu';
+import PostLikersSheet from './PostLikersSheet';
+import DoubleTapLike from './DoubleTapLike';
+import { likeHaptic } from '../haptics';
+import { CONTENT_TYPES } from '../moderationApi';
 
-// One post in the Explore feed — an image-with-caption or a text-only
-// "thread" from a Spiritual Leader (or, since posts aren't actually
-// restricted to one role table at the database level, a Mother or Pastor
-// too), plus a like button and a comment count. Tapping the author's name/
-// photo opens their public profile. A verified checkmark (Approved only)
-// and a Follow/Following button next to the author were added to match
-// Girik's Explore reference — the button is wired to a real `follows`
-// table, not just cosmetic.
+// One post, laid out like an Instagram feed post: author row, full-width
+// image at its own shape, a heart / comment / share row with counts, the
+// caption (author name in bold, two lines with "… more"), "View all N
+// comments", and the date.
+//
+// Tapping the heart likes/unlikes; tapping the like COUNT opens a "Likes"
+// sheet listing everyone who liked it. Share opens the phone's share sheet.
+//
+// The card runs edge to edge: the FlatList that holds it is pulled out of
+// the app's 24px side padding (marginHorizontal -24) by the screen showing
+// it. A negative margin on the card itself gets clipped on Android.
 //
 // `author` is the post's directory_listing row, resolved by the caller via
-// fetchAuthorsByAuthId (keyed off post.author_auth_id) — there's no foreign
-// key from posts to any role table, so it can't be embedded on `post`
-// itself the way an actual FK would allow.
+// fetchAuthorsByAuthId (keyed off post.author_auth_id).
+const SITE_URL = 'https://rootedtogether.club';
+
+function formatPostDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const opts = { month: 'long', day: 'numeric' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  try {
+    return d.toLocaleDateString('en-US', opts);
+  } catch (e) {
+    return d.toDateString();
+  }
+}
+
 export default function PostCard({
   post, author, authorAvatarUrl, imageUrl, liked, likeCount, commentCount,
   onToggleLike, onOpenComments, onOpenAuthor, isFollowing, onToggleFollow,
+  myAuthId, onReported, onBlocked, onOpenPerson,
 }) {
   const verified = author?.vetting_status === 'Approved';
+  const { width } = useWindowDimensions();
+  const [aspect, setAspect] = useState(1); // width / height
+  const [captionExpanded, setCaptionExpanded] = useState(false);
+  const [captionTruncatable, setCaptionTruncatable] = useState(false);
+  const [showLikers, setShowLikers] = useState(false);
+
+  useEffect(() => {
+    if (!imageUrl) return;
+    let cancelled = false;
+    Image.getSize(
+      imageUrl,
+      (w, h) => {
+        // Same range Instagram allows: 4:5 portrait up to 1.91:1 landscape.
+        if (!cancelled && w && h) setAspect(Math.min(1.91, Math.max(0.8, w / h)));
+      },
+      () => {},
+    );
+    return () => { cancelled = true; };
+  }, [imageUrl]);
+
+  async function handleShare() {
+    const name = author?.name || 'Someone';
+    const snippet = post.body ? `“${post.body.length > 140 ? `${post.body.slice(0, 140)}…` : post.body}”\n\n` : '';
+    try {
+      await Share.share({ message: `${name} on Rooted Together\n\n${snippet}${SITE_URL}` });
+    } catch (e) {
+      // Share sheet dismissed or unavailable — nothing to do.
+    }
+  }
+
+  const textOnly = !imageUrl;
 
   return (
     <View style={styles.card}>
@@ -34,67 +87,125 @@ export default function PostCard({
               <Text style={styles.avatarFallbackText}>{initialsFor(author?.name)}</Text>
             </View>
           )}
-          <View>
+          <View style={{ flexShrink: 1 }}>
             <View style={styles.nameRow}>
-              <Text style={styles.authorName}>{author?.name || 'Unknown'}</Text>
+              <Text style={styles.authorName} numberOfLines={1}>{author?.name || 'Unknown'}</Text>
               {verified && <Ionicons name="checkmark-circle" size={14} color={colors.brown} style={styles.verifiedIcon} />}
             </View>
             <Text style={styles.authorRole}>{author?.role ? (ROLE_LABELS[author.role] || author.role) : 'Spiritual Leader'}</Text>
           </View>
         </TouchableOpacity>
 
-        {onToggleFollow && (
-          <TouchableOpacity
-            style={[styles.followBtn, isFollowing && styles.followBtnActive]}
-            onPress={onToggleFollow}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
-              {isFollowing ? 'Following' : 'Follow'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.rightActions}>
+          {onToggleFollow && (
+            <TouchableOpacity
+              style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+              onPress={onToggleFollow}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+                {isFollowing ? 'Following' : 'Follow'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <ReportBlockMenu
+            myAuthId={myAuthId}
+            targetAuthId={post.author_auth_id}
+            targetName={author?.name}
+            contentType={CONTENT_TYPES.post}
+            contentId={post.id}
+            noun="post"
+            onReported={onReported}
+            onBlocked={onBlocked}
+          />
+        </View>
       </View>
 
-      {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.postImage} /> : null}
-
-      {post.body ? (
-        <Text style={[styles.body, !imageUrl && styles.bodyStandalone]}>{post.body}</Text>
+      {/* Double-tap anywhere on the picture (or the text card) to like. */}
+      {imageUrl ? (
+        <DoubleTapLike onDoubleTap={onToggleLike} alreadyActive={liked} style={{ width, height: width / aspect }}>
+          <Image source={{ uri: imageUrl }} style={{ width, height: width / aspect, backgroundColor: colors.creamDark }} resizeMode="cover" />
+        </DoubleTapLike>
+      ) : post.body ? (
+        <DoubleTapLike onDoubleTap={onToggleLike} alreadyActive={liked} iconColor="#C0392B">
+          <View style={styles.textOnlyBox}>
+            <Text style={styles.textOnlyBody}>{post.body}</Text>
+          </View>
+        </DoubleTapLike>
       ) : null}
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onToggleLike} activeOpacity={0.7}>
-          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={20} color={liked ? colors.brown : colors.textSoft} />
-          <Text style={styles.actionCount}>{likeCount}</Text>
-        </TouchableOpacity>
+        <View style={styles.actionBtn}>
+          <TouchableOpacity onPress={() => { if (!liked) likeHaptic(); onToggleLike(); }} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}>
+            <Ionicons name={liked ? 'heart' : 'heart-outline'} size={26} color={liked ? '#C0392B' : colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowLikers(true)} disabled={!likeCount} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
+            <Text style={styles.actionCount}>{likeCount || 0}</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.actionBtn} onPress={onOpenComments} activeOpacity={0.7}>
-          <Ionicons name="chatbubble-outline" size={18} color={colors.textSoft} />
-          <Text style={styles.actionCount}>{commentCount}</Text>
+          <Ionicons name="chatbubble-outline" size={24} color={colors.text} />
+          <Text style={styles.actionCount}>{commentCount || 0}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionBtn} onPress={handleShare} activeOpacity={0.7}>
+          <Ionicons name="paper-plane-outline" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
+
+      {!textOnly && post.body ? (
+        <View style={styles.captionWrap}>
+          <Text
+            style={[styles.caption, styles.captionMeasure]}
+            onTextLayout={(e) => setCaptionTruncatable(e.nativeEvent.lines.length > 2)}
+          >
+            <Text style={styles.captionName}>{author?.name || ''} </Text>
+            {post.body}
+          </Text>
+          <Text style={styles.caption} numberOfLines={captionExpanded ? undefined : 2}>
+            <Text style={styles.captionName}>{author?.name || ''} </Text>
+            {post.body}
+          </Text>
+          {captionTruncatable && !captionExpanded && (
+            <TouchableOpacity onPress={() => setCaptionExpanded(true)} hitSlop={{ top: 4, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.moreText}>… more</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
+
+      {commentCount > 0 && (
+        <TouchableOpacity onPress={onOpenComments} activeOpacity={0.7}>
+          <Text style={styles.viewComments}>
+            {commentCount === 1 ? 'View 1 comment' : `View all ${commentCount} comments`}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      <Text style={styles.date}>{formatPostDate(post.created_at)}</Text>
+
+      <PostLikersSheet
+        postId={post.id}
+        visible={showLikers}
+        onClose={() => setShowLikers(false)}
+        onOpenPerson={onOpenPerson}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: 'rgba(107,66,38,0.1)',
-    borderRadius: 12,
-    marginBottom: 14,
-    overflow: 'hidden',
-  },
-  authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12 },
+  card: { backgroundColor: colors.white, marginBottom: 22 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10 },
+  rightActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   authorTap: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
-  avatarImg: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.creamDark },
+  avatarImg: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.creamDark },
   avatarFallback: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: colors.creamDark,
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.creamDark,
     alignItems: 'center', justifyContent: 'center',
   },
   avatarFallbackText: { color: colors.brown, fontWeight: '700', fontSize: 13 },
   nameRow: { flexDirection: 'row', alignItems: 'center' },
-  authorName: { fontSize: 14.5, color: colors.text, fontWeight: '700' },
+  authorName: { fontSize: 14.5, color: colors.text, fontWeight: '700', flexShrink: 1 },
   verifiedIcon: { marginLeft: 4 },
   authorRole: { fontSize: 12, color: colors.textSoft, marginTop: 1 },
   followBtn: {
@@ -104,10 +215,19 @@ const styles = StyleSheet.create({
   followBtnActive: { backgroundColor: colors.brown, borderColor: colors.brown },
   followBtnText: { fontSize: 12.5, color: colors.brown, fontWeight: '700' },
   followBtnTextActive: { color: colors.white },
-  postImage: { width: '100%', height: 340, backgroundColor: colors.creamDark },
-  body: { fontSize: 14.5, color: colors.text, lineHeight: 21, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
-  bodyStandalone: { fontFamily: serif, fontSize: 17, lineHeight: 25, paddingVertical: 16 },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 20 },
+  textOnlyBox: {
+    backgroundColor: colors.cream, paddingHorizontal: 22, paddingVertical: 28,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgba(107,66,38,0.08)',
+  },
+  textOnlyBody: { fontFamily: serif, fontSize: 17, lineHeight: 25, color: colors.text },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 6, gap: 18 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  actionCount: { fontSize: 13.5, color: colors.textSoft, fontWeight: '600' },
+  actionCount: { fontSize: 14.5, color: colors.text, fontWeight: '600' },
+  captionWrap: { paddingHorizontal: 14, position: 'relative' },
+  caption: { fontSize: 14.5, color: colors.text, lineHeight: 20 },
+  captionMeasure: { position: 'absolute', left: 14, right: 14, top: 0, opacity: 0, zIndex: -1 },
+  captionName: { fontWeight: '700' },
+  moreText: { fontSize: 14.5, color: colors.textSoft, marginTop: 1 },
+  viewComments: { fontSize: 14, color: colors.textSoft, paddingHorizontal: 14, marginTop: 6 },
+  date: { fontSize: 12.5, color: colors.textSoft, paddingHorizontal: 14, marginTop: 6 },
 });

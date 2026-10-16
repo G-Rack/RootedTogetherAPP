@@ -6,6 +6,7 @@
 // apply to join your own family. Instead the owner invites someone
 // directly (see inviteToRealFamily) and the invitee accepts or declines.
 import { supabase } from './supabaseClient';
+import { notifyPush } from './notifications';
 import { DEFAULT_SLOTS } from './familyApi';
 
 export { DEFAULT_SLOTS };
@@ -146,6 +147,7 @@ export async function sendRealFamilyGroupMessage(familyId, myAuthId, body) {
     .select('*')
     .single();
   if (error) throw error;
+  notifyPush({ kind: 'real_family_message', messageId: data.id });
   return data;
 }
 

@@ -192,6 +192,7 @@ export default function ExploreScreen({
       ) : null}
 
       <FlatList
+        style={styles.feedList}
         data={feed}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brown} />}
@@ -204,6 +205,7 @@ export default function ExploreScreen({
             const post = item.post;
             const community = communitiesById[post.community_id];
             return (
+              <View style={styles.insetItem}>
               <CommunityPostCard
                 post={post}
                 author={communityAuthors[post.author_auth_id]}
@@ -213,7 +215,11 @@ export default function ExploreScreen({
                 onToggleHelpful={() => handleToggleHelpful(post.id)}
                 onOpenComments={() => onOpenCommunityComments(post.id)}
                 onOpenCommunity={() => onOpenCommunity(post.community_id)}
+                myAuthId={myAuthId}
+                onReported={() => setFeed((f) => f.filter((x) => x.id !== item.id))}
+                onBlocked={load}
               />
+              </View>
             );
           }
           const post = item.post;
@@ -232,8 +238,12 @@ export default function ExploreScreen({
               onToggleLike={() => handleToggleLike(post.id)}
               onOpenComments={() => onOpenComments(post.id)}
               onOpenAuthor={() => author && onOpenAuthor(author.role, author.id)}
+              onOpenPerson={(p) => onOpenAuthor(p.role, p.id)}
               isFollowing={!!followMeta[authorAuthId]?.followedByMe}
               onToggleFollow={authorAuthId && authorAuthId !== myAuthId ? () => handleToggleFollow(authorAuthId) : undefined}
+              myAuthId={myAuthId}
+              onReported={() => setFeed((f) => f.filter((x) => x.id !== item.id))}
+              onBlocked={load}
             />
           );
         }}
@@ -244,6 +254,10 @@ export default function ExploreScreen({
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, paddingTop: 4 },
+  // Posts run edge to edge, so the feed list is pulled out of the app's
+  // 24px side padding; community cards are put back inside it.
+  feedList: { marginHorizontal: -24 },
+  insetItem: { paddingHorizontal: 24 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   header: { fontFamily: serif, fontSize: 26, color: colors.brown, fontWeight: '700' },

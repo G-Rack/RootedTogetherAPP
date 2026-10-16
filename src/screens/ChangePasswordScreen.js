@@ -83,7 +83,7 @@ export default function ChangePasswordScreen({ session, onBack }) {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.wrap} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.wrap} behavior="padding">
       <View style={styles.topBar}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
           <Text style={styles.backChevron}>‹</Text>

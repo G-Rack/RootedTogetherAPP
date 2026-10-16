@@ -7,6 +7,8 @@ import { colors, serif } from '../theme';
 import { fetchCommunityPostComments, addCommunityPostComment } from '../communitiesApi';
 import { fetchAuthorsByAuthId, fetchSignedUrls } from '../postsApi';
 import { initialsFor, ROLE_LABELS } from '../roleLabels';
+import ReportBlockMenu from '../components/ReportBlockMenu';
+import { CONTENT_TYPES } from '../moderationApi';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -134,6 +136,18 @@ export default function CommunityPostCommentsScreen({ postId, session, onBack })
                     {author?.name || 'Someone'}
                     <Text style={styles.commentRole}>  {author ? (ROLE_LABELS[author.role] || author.role) : ''}</Text>
                   </Text>
+                  <View style={{ flex: 1 }} />
+                  <ReportBlockMenu
+                    myAuthId={session?.user?.id}
+                    targetAuthId={item.author_auth_id}
+                    targetName={author?.name}
+                    contentType={CONTENT_TYPES.communityComment}
+                    contentId={item.id}
+                    noun="comment"
+                    size={16}
+                    onReported={() => setComments((list) => (list || []).filter((c) => c.id !== item.id))}
+                    onBlocked={load}
+                  />
                 </View>
                 <Text style={styles.commentBody}>{item.body}</Text>
               </View>

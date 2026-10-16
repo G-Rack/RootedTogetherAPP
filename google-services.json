@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "119150596115",
+    "project_id": "ted-together",
+    "storage_bucket": "ted-together.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119150596115:android:4dadafbc5f6e9428c8afe6",
+        "android_client_info": {
+          "package_name": "com.rootedtogether.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMz25-61nfDiiXP9aY1AoUW6V1fLk85HI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -3,6 +3,7 @@ import { View, Text, FlatList, Image, StyleSheet, ActivityIndicator, RefreshCont
 import { colors, serif } from '../theme';
 import { supabase } from '../supabaseClient';
 import { ROLE_LABELS, initialsFor } from '../roleLabels';
+import { fetchBlockedIdSet, withoutBlocked } from '../moderationApi';
 
 // v1 scope, per the answers we settled on before building this:
 //   - Everyone sees everyone (no role-based visibility restrictions)
@@ -95,13 +96,15 @@ export default function DirectoryScreen({ onOpenProfile }) {
       return;
     }
 
-    setPeople(data || []);
+    // People I've blocked (or who blocked me) don't show up in the directory.
+    const visible = withoutBlocked(data || [], 'auth_user_id', await fetchBlockedIdSet());
+    setPeople(visible);
 
     // Profile pictures live in a private storage bucket, so a plain public
     // URL won't work — batch-request short-lived signed URLs for every
     // picture this screen actually needs to show, one request instead of
     // one per row.
-    const paths = (data || [])
+    const paths = visible
       .map((p) => p.profile_picture_path)
       .filter(Boolean);
     if (paths.length) {
@@ -260,8 +263,10 @@ const styles = StyleSheet.create({
     marginHorizontal: -24,
     marginBottom: 14,
     flexGrow: 0,
+    flexShrink: 0,
+    height: 46,
   },
-  filterRowContent: { flexDirection: 'row', paddingHorizontal: 24, gap: 8 },
+  filterRowContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, gap: 8 },
   filterPill: {
     // `overflow: 'visible'` stays here as cheap insurance (never hurts on a
     // shape whose padding already keeps text well inside it), but it was

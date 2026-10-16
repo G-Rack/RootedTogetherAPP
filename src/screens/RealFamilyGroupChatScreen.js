@@ -11,6 +11,8 @@ import {
 } from '../realFamilyApi';
 import { fetchAuthorsByAuthId, fetchSignedUrls } from '../postsApi';
 import { unsubscribe } from '../chatApi';
+import ReportBlockMenu from '../components/ReportBlockMenu';
+import { CONTENT_TYPES, fetchBlockedIdSet } from '../moderationApi';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -25,6 +27,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 export default function RealFamilyGroupChatScreen({ session, family, isOwner, ownerName, onBack }) {
   const myAuthId = session?.user?.id;
   const [messages, setMessages] = useState([]);
+  const [blocked, setBlocked] = useState(() => new Set()); // auth ids whose messages are hidden
   const [people, setPeople] = useState({}); // auth_id -> {name, role, profile_picture_path}
   const [avatarUrls, setAvatarUrls] = useState({}); // profile_picture_path -> signed url
   const [loading, setLoading] = useState(true);
@@ -69,6 +72,7 @@ export default function RealFamilyGroupChatScreen({ session, family, isOwner, ow
       fetchRealFamilyMembers(family.id),
     ]);
     setMessages(msgs);
+    setBlocked(await fetchBlockedIdSet(true));
     const ids = [family.owner_auth_id, ...memberRows.map((m) => m.member_auth_id)];
     const peopleMap = await fetchAuthorsByAuthId(ids);
     setPeople(peopleMap);
@@ -129,7 +133,7 @@ export default function RealFamilyGroupChatScreen({ session, family, isOwner, ow
         <FlatList
           ref={listRef}
           style={styles.list}
-          data={messages}
+          data={messages.filter((m) => !blocked.has(m.sender_auth_id))}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 14, paddingBottom: 8, gap: 10 }}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
@@ -157,6 +161,17 @@ export default function RealFamilyGroupChatScreen({ session, family, isOwner, ow
                     <Text style={styles.senderName} numberOfLines={1}>
                       {sender?.name || 'Family Member'}{isOwnerMsg ? ' · Organizer' : ''}
                     </Text>
+                    <ReportBlockMenu
+                      myAuthId={myAuthId}
+                      targetAuthId={item.sender_auth_id}
+                      targetName={sender?.name}
+                      contentType={CONTENT_TYPES.groupMessage}
+                      contentId={item.id}
+                      noun="message"
+                      size={14}
+                      onReported={() => setMessages((prev) => prev.filter((m) => m.id !== item.id))}
+                      onBlocked={async () => setBlocked(await fetchBlockedIdSet(true))}
+                    />
                   </View>
                 )}
                 <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>

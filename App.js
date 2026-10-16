@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  SafeAreaView, ScrollView, View, Text, StyleSheet, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, Platform,
 } from 'react-native';
+import KeyboardAwareScrollView from './src/components/KeyboardAwareScrollView';
+import { SafeAreaProvider, SafeAreaView as SafeAreaInsetView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { colors, serif } from './src/theme';
 import { FLOWS, THANK_YOU } from './src/flows';
@@ -14,6 +16,10 @@ import ReferralThankYouScreen from './src/screens/ReferralThankYouScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import HomeTabs from './src/screens/HomeTabs';
+import { configureNotifications, unregisterPushNotifications } from './src/notifications';
+
+// Show notifications as a banner even while the app is open (no-op in Expo Go).
+configureNotifications();
 
 export default function App() {
   // undefined = still checking for an existing session on launch;
@@ -259,7 +265,10 @@ export default function App() {
           'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           'apikey': SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ role, fields, profilePicture, certificationFile, password }),
+        // source: 'app' tells the server this is a native-app sign-up: creator
+        // accounts are free here (no $49 website payment needed) and buy
+        // Premium in the app to message, like Seekers and Assistants.
+        body: JSON.stringify({ role, fields, profilePicture, certificationFile, password, source: 'app' }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -303,6 +312,9 @@ export default function App() {
     : role;
 
   async function handleLogOut() {
+    // Stop this phone getting the account's notifications — must happen
+    // while still signed in.
+    await unregisterPushNotifications();
     await supabase.auth.signOut();
     resetToStart();
     setAuthScreen('signup');
@@ -314,23 +326,24 @@ export default function App() {
   // scroll correctly, which they can't get nested inside a ScrollView.
   if (session) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <StatusBar style="dark" />
-        <View style={styles.loggedInWrap}>
-          <Text style={styles.brand}>Rooted Together</Text>
-          <View style={styles.loggedInPanel}>
+      <SafeAreaProvider>
+        <SafeAreaInsetView style={styles.safeLoggedIn} edges={['top', 'left', 'right']}>
+          <StatusBar style="dark" />
+          <View style={styles.loggedInWrap}>
             <HomeTabs session={session} onLogOut={handleLogOut} />
           </View>
-        </View>
-      </SafeAreaView>
+        </SafeAreaInsetView>
+      </SafeAreaProvider>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaProvider>
+    <SafeAreaInsetView style={styles.safe}>
       <StatusBar style="dark" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      {/* Keeps the field being typed in visible above the keyboard by
+          scrolling just enough, rather than pushing the whole form up. */}
+      <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
           <Text style={styles.brand}>Rooted Together</Text>
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${progress}%` }]} />
@@ -393,25 +406,22 @@ export default function App() {
               />
             )}
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </KeyboardAwareScrollView>
+    </SafeAreaInsetView>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
   scroll: { padding: 20, paddingTop: 24, paddingBottom: 60 },
-  loggedInWrap: { flex: 1, padding: 20, paddingTop: 24 },
-  loggedInPanel: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: 'rgba(107,66,38,0.1)',
-    borderRadius: 14,
-    padding: 24,
-    marginTop: 4,
-  },
+  // Signed-in app fills the whole screen (no card frame or brand title).
+  // Top inset comes from SafeAreaInsetView; the bottom inset is applied to
+  // the tab bar in HomeTabs so it clears Android's navigation bar.
+  // Horizontal padding stays 24 because several screens use
+  // marginHorizontal: -24 to run sections edge to edge.
+  safeLoggedIn: { flex: 1, backgroundColor: colors.white },
+  loggedInWrap: { flex: 1, paddingHorizontal: 24, paddingTop: 16 },
   brand: { fontFamily: serif, fontSize: 20, fontWeight: '700', color: colors.brown, textAlign: 'center', marginBottom: 20 },
   progressTrack: { height: 6, backgroundColor: colors.creamDark, borderRadius: 999, overflow: 'hidden', marginBottom: 24 },
   progressFill: { height: '100%', backgroundColor: colors.brown, borderRadius: 999 },

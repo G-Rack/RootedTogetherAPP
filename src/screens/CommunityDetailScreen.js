@@ -354,6 +354,9 @@ export default function CommunityDetailScreen({ communityId, session, onBack, on
           commentCount={commentCounts[item.id] || 0}
           onToggleHelpful={() => handleToggleHelpful(item.id)}
           onOpenComments={() => onOpenComments(item.id)}
+          myAuthId={myAuthId}
+          onReported={() => setPosts((list) => (list || []).filter((x) => x.id !== item.id))}
+          onBlocked={() => loadPosts(tag)}
           style={styles.postCardSpacing}
         />
       )}
