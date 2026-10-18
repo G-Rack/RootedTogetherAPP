@@ -13,7 +13,9 @@ import {
 import { fetchMyCommunities, getGrowthScore } from '../communitiesApi';
 import { WEB_BASE_URL } from '../config';
 import BlockedUsersScreen from './BlockedUsersScreen';
-import { fetchMyFullProfileRow, hasCompletedOptionalDetails } from '../profileEditing';
+import { fetchMyFullProfileRow } from '../profileEditing';
+import { buildChecklist } from '../profileChecklist';
+import ProfileChecklistScreen from './ProfileChecklistScreen';
 import EditProfileScreen from './EditProfileScreen';
 import ChangePasswordScreen from './ChangePasswordScreen';
 import PayoutsReferralsScreen from './PayoutsReferralsScreen';
@@ -47,7 +49,7 @@ function SettingsRow({ label, onPress, last, danger, showDot }) {
 // had a Log out button. It's built around the same directory_listing view
 // every other profile screen already reads from, just filtered to the
 // signed-in person's own auth_user_id (see fetchMyDirectoryPerson).
-export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenComments, onOpenCommunity, onCreateCommunity, onOpenProfile }) {
+export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenComments, onOpenCommunity, onCreateCommunity, onOpenProfile, intent, onIntentConsumed }) {
   // Instagram-style: tapping a grid post opens the full-size Posts view
   // (PostFeedView) scrolled to that post.
   const [feedPostId, setFeedPostId] = useState(null);
@@ -75,6 +77,9 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
   // Defaults to true (no nag) until the real row loads, so there's no
   // flash of "incomplete" before fetchMyFullProfileRow resolves.
   const [profileDetailsComplete, setProfileDetailsComplete] = useState(true);
+  // "Complete your profile" checklist (what the short sign-up skipped).
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [checklist, setChecklist] = useState(null);
 
   const myAuthId = session?.user?.id;
   const isFollowable = person && FOLLOWABLE_ROLES.includes(person.role);
@@ -89,7 +94,9 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
     // columns, so this needs the person's actual role-table row.
     if (data) {
       const fullRow = await fetchMyFullProfileRow(myAuthId, data.role);
-      setProfileDetailsComplete(hasCompletedOptionalDetails(data.role, fullRow));
+      const cl = buildChecklist(data.role, fullRow);
+      setChecklist(cl);
+      setProfileDetailsComplete(cl.total === 0 || cl.complete);
     }
 
     if (data?.profile_picture_path) {
@@ -125,6 +132,14 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
   useEffect(() => {
     load();
   }, [load]);
+
+  // Opened from the Explore card or the welcome screen's "Finish my profile".
+  useEffect(() => {
+    if (intent === 'checklist') {
+      setShowChecklist(true);
+      onIntentConsumed?.();
+    }
+  }, [intent, onIntentConsumed]);
 
   // Lets someone replace their own profile photo — the pencil badge on the
   // avatar used to just show a "coming later" alert. Picks from the photo
@@ -234,6 +249,24 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           setShowEditProfile(false);
           load();
         }}
+      />
+    );
+  }
+
+  if (showChecklist) {
+    if (!checklist) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.brown} />
+        </View>
+      );
+    }
+    return (
+      <ProfileChecklistScreen
+        checklist={checklist}
+        onBack={() => setShowChecklist(false)}
+        onEdit={() => setShowEditProfile(true)}
+        onPickPhoto={async () => { await handleChangePhoto(); load(); }}
       />
     );
   }
@@ -435,10 +468,10 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           </View>
 
           {!profileDetailsComplete && (
-            <TouchableOpacity style={styles.completeBanner} onPress={() => setShowEditProfile(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={styles.completeBanner} onPress={() => setShowChecklist(true)} activeOpacity={0.8}>
               <Ionicons name="information-circle-outline" size={16} color={colors.errorText} />
               <Text style={styles.completeBannerText}>
-                Your profile is missing a few optional details — tap to finish it.
+                Your profile is missing a few details — tap to finish it.
               </Text>
             </TouchableOpacity>
           )}
@@ -567,10 +600,10 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           </View>
         )}
         {!profileDetailsComplete && (
-          <TouchableOpacity style={styles.completeBanner} onPress={() => setShowEditProfile(true)} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.completeBanner} onPress={() => setShowChecklist(true)} activeOpacity={0.8}>
             <Ionicons name="information-circle-outline" size={16} color={colors.errorText} />
             <Text style={styles.completeBannerText}>
-              Your profile is missing a few optional details — tap to finish it.
+              Your profile is missing a few details — tap to finish it.
             </Text>
           </TouchableOpacity>
         )}

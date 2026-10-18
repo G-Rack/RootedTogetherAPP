@@ -17,6 +17,16 @@ with native code, or touches permissions, icon, splash or the Expo SDK.)
 - Replying to messages needs Premium
 
 ## Pending
+- [ ] NEW SIGN-UP (Expo Go only, no new build needed): one account screen (email + password; Apple/Google
+      buttons show "coming soon"), then a few tap-to-answer slides on a dark brown screen: how you'll use the
+      app -> (Seeker) what you're walking through -> who it's for + faith -> name & date of birth.
+      Creators: goals slide instead. Church: church name + your name. Then a welcome screen.
+      Nothing is created until the last slide. Everything the old long form asked is now in Edit Profile, and a
+      "Finish your profile" card on Explore + a "Complete your profile" checklist (Profile tab) track what's
+      left. Creator goals are saved into the "Anything Else" field. Old sign-up screens (StepScreen,
+      RoleSelectScreen, SignupDecisionScreen, ReferralThankYouScreen) are no longer used.
+      (App.js, OnboardingScreen.js, WelcomeScreen.js, ProfileChecklistScreen.js, FinishProfileCard.js,
+      DarkUI.js, profileChecklist.js, HomeTabs.js, ExploreScreen.js, ProfileScreen.js)
 - [x] Seeker / Assistant profiles: the pencil on the profile picture opens the photo picker to change
       the photo (was opening "Complete your profile") (ProfileScreen.js)
 - [ ] Sign-up: the page stays put and scrolls smoothly just enough to keep the field you're typing in above

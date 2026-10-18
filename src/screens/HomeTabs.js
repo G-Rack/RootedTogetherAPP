@@ -47,9 +47,11 @@ const TABS = [
   { key: 'profile', icon: 'person-circle-outline', label: 'Profile' },
 ];
 
-export default function HomeTabs({ session, onLogOut }) {
+export default function HomeTabs({ session, onLogOut, initialProfileIntent }) {
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState('directory');
+  const [tab, setTab] = useState(initialProfileIntent ? 'profile' : 'directory');
+  // 'checklist' asks the Profile tab to open its "Complete your profile" screen once.
+  const [profileIntent, setProfileIntent] = useState(initialProfileIntent || null);
   // null | {type:'profile',role,id} | {type:'createPost'} | {type:'comments',postId}
   // | {type:'chatThread',conversation,otherPerson} | {type:'chatUpgrade',person}
   // | {type:'communityDetail',communityId} | {type:'createCommunity'}
@@ -280,6 +282,7 @@ export default function HomeTabs({ session, onLogOut }) {
         onOpenCommunity={openCommunity}
         onOpenCommunityComments={openCommunityPostComments}
         onBrowseCommunities={openCommunitiesBrowse}
+        onOpenChecklist={() => { setProfileIntent('checklist'); selectTab('profile'); }}
       />
     );
   } else if (tab === 'directory') {
@@ -313,6 +316,8 @@ export default function HomeTabs({ session, onLogOut }) {
         onOpenCommunity={openCommunity}
         onCreateCommunity={openCreateCommunity}
         onOpenProfile={openProfile}
+        intent={profileIntent}
+        onIntentConsumed={() => setProfileIntent(null)}
       />
     );
   }

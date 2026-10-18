@@ -10,7 +10,7 @@ import { ScrollView, Keyboard, TextInput, Platform } from 'react-native';
 // and whenever a field gains focus it's measured on screen and, if the
 // keyboard would cover it, the list scrolls smoothly just enough to sit it
 // a comfortable gap above the keyboard.
-const GAP_ABOVE_KEYBOARD = 28;
+const GAP_ABOVE_KEYBOARD = 110;
 
 export default function KeyboardAwareScrollView({ children, contentContainerStyle, ...rest }) {
   const scrollRef = useRef(null);
@@ -71,7 +71,7 @@ export default function KeyboardAwareScrollView({ children, contentContainerStyl
       scrollEventThrottle={16}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
-      contentContainerStyle={[contentContainerStyle, keyboardHeight ? { paddingBottom: keyboardHeight + 40 } : null]}
+      contentContainerStyle={[contentContainerStyle, keyboardHeight ? { paddingBottom: keyboardHeight + GAP_ABOVE_KEYBOARD + 20 } : null]}
       {...rest}
     >
       {children}

@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, To
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import PostCard from '../components/PostCard';
+import FinishProfileCard from '../components/FinishProfileCard';
 import CommunityPostCard from '../components/CommunityPostCard';
 import {
   fetchPosts, fetchSignedUrls, fetchLikeMeta, fetchCommentCounts, toggleLike, getMyLeaderRow,
@@ -24,7 +25,7 @@ import {
 // someone's profile.
 export default function ExploreScreen({
   session, onOpenAuthor, onOpenComments, onCreatePost, onSearchPeople,
-  onOpenCommunity, onOpenCommunityComments, onBrowseCommunities,
+  onOpenCommunity, onOpenCommunityComments, onBrowseCommunities, onOpenChecklist,
 }) {
   const [feed, setFeed] = useState(null); // null = loading; array of {kind:'leader'|'community', post, ...}
   const [imageUrls, setImageUrls] = useState({});
@@ -184,6 +185,8 @@ export default function ExploreScreen({
           </TouchableOpacity>
         </View>
       </View>
+
+      {onOpenChecklist ? <FinishProfileCard session={session} onPress={onOpenChecklist} /> : null}
 
       {error ? (
         <View style={styles.errorBox}>

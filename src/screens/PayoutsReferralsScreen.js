@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Platform,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
-import { handleFor } from '../roleLabels';
+import { supabase } from '../supabaseClient';
+import { WEB_BASE_URL } from '../config';
 
 // Replaces the old "Payouts & Earnings" stub in Settings for Leader roles
 // (Mothers, Pastors, Influencers). There is no payouts/referrals backend
@@ -24,7 +25,6 @@ import { handleFor } from '../roleLabels';
 // API rather than a clipboard library — nothing else in this app depends on
 // one yet, and the native share sheet on both iOS and Android already
 // includes a Copy action, so this works today with no new dependency.
-const REFERRAL_URL = 'https://rootedtogether.club';
 
 const PAYOUT_HISTORY = [
   { date: 'Sep 28, 2026', method: 'Bank transfer', amount: '$210.00', status: 'Paid' },
@@ -51,27 +51,42 @@ function StatusChip({ status }) {
 }
 
 export default function PayoutsReferralsScreen({ onBack, person }) {
-  // handleFor() always returns "@slug" (or "@member" with no name) — strip
-  // the "@" and upper-case it so the code reads like "ROOTED-ZEEPOMBO"
-  // rather than "ROOTED-@zeepombo".
-  const referralCode = `ROOTED-${handleFor(person?.name).slice(1).toUpperCase()}`;
+  // The real referral code (RT-00042). It only exists once the member's
+  // referral application is approved on the website dashboard; until then
+  // there is nothing to share.
+  const [realCode, setRealCode] = useState(undefined);
+  useEffect(() => {
+    let active = true;
+    supabase.rpc('get_my_referral_code').then(({ data }) => {
+      if (active) setRealCode(data || null);
+    });
+    return () => { active = false; };
+  }, []);
+  const referralCode = realCode || (realCode === undefined ? '…' : 'Not approved yet');
+  const referralLink = realCode ? `${WEB_BASE_URL}/join?ref=${encodeURIComponent(realCode)}` : null;
 
   function handleRequestPayout() {
     Alert.alert('Request Payout', 'Payout requests aren’t available yet — this is coming in a later part of the build.');
   }
 
   async function handleCopyCode() {
+    if (!realCode) {
+      return Alert.alert('No referral code yet', 'Apply to the referral program from the Referrals page of your dashboard at rootedtogether.club. Your code appears here once you are approved.');
+    }
     try {
-      await Share.share({ message: referralCode });
+      await Share.share({ message: realCode });
     } catch (e) {
       // User dismissed the share sheet — nothing to do.
     }
   }
 
   async function handleShareLink() {
+    if (!realCode) {
+      return Alert.alert('No referral code yet', 'Apply to the referral program from the Referrals page of your dashboard at rootedtogether.club. Your code appears here once you are approved.');
+    }
     try {
       await Share.share({
-        message: `Join me on Rooted Together — use my invite code ${referralCode} or sign up at ${REFERRAL_URL}`,
+        message: `Join me on Rooted Together. Get the app and use my invite code ${realCode} when you sign up: ${referralLink}`,
       });
     } catch (e) {
       // User dismissed the share sheet — nothing to do.
@@ -139,7 +154,7 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
         <Text style={styles.sectionLabel}>Your Referral Link</Text>
         <View style={styles.card}>
           <Text style={styles.referralHint}>
-            Share your link — when someone joins and becomes active, you both earn.
+            Share your link. People who sign up in the app with your code are connected to you, and you earn a cut of their net purchases.
           </Text>
 
           <View style={styles.codeBox}>
