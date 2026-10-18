@@ -1,78 +1,252 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Share, Platform,
+  Linking, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { supabase } from '../supabaseClient';
 import { WEB_BASE_URL } from '../config';
 
-// Replaces the old "Payouts & Earnings" stub in Settings for Leader roles
-// (Mothers, Pastors, Influencers). There is no payouts/referrals backend
-// yet, so every number here is a placeholder — this screen exists to give
-// the real layout and interactions a home, the same way ChangePasswordScreen
-// replaced its own "coming later" stub. Once a payouts/referrals table and
-// Edge Function exist, swap the constants below for a real fetch.
-//
-// The referral code itself isn't a placeholder, though — it's derived from
-// the signed-in person's own @handle (the same handleFor() used for their
-// profile's @handle text), so each leader sees and shares their own code
-// rather than a shared dummy one.
-//
-// Request Payout mirrors the app's existing "coming in a later part of the
-// build" pattern (see ProfileScreen's notReady helper) rather than silently
-// doing nothing. Copy Code and Share Link use React Native's built-in Share
-// API rather than a clipboard library — nothing else in this app depends on
-// one yet, and the native share sheet on both iOS and Android already
-// includes a Copy action, so this works today with no new dependency.
+// Payouts & Referrals for Leader roles (Mothers, Pastors, Influencers).
+// Every number here is read live from the same Supabase project as the website
+// dashboard:
+//   - Balance / pending / payouts: the creator's own Stripe balance, through the
+//     stripe-connect-onboarding function (the same one the website's Payouts
+//     page uses). "Request Payout" really pays the available balance to their
+//     bank (minimum is enforced by the function).
+//   - Earnings and recent sales: offering_purchases for their offerings plus paid
+//     prayer / meditation requests, counted net of platform and card fees.
+//   - Referrals: the member's RT-00042 code, how many people signed up with it,
+//     their tier, and the cuts recorded in referral_earnings. Referral cuts are a
+//     tracked ledger, not part of the Stripe balance, so they are labelled as such.
+// Creators who have not finished Stripe setup see their earnings plus a button to
+// finish setup on the website (identity and bank details are collected by Stripe
+// on their hosted page, never inside the app).
+// Copy Code / Share Link use the native Share sheet (which includes Copy), so no
+// clipboard dependency is needed.
 
-const PAYOUT_HISTORY = [
-  { date: 'Sep 28, 2026', method: 'Bank transfer', amount: '$210.00', status: 'Paid' },
-  { date: 'Sep 14, 2026', method: 'Bank transfer', amount: '$185.00', status: 'Paid' },
-  { date: 'Aug 30, 2026', method: 'Bank transfer', amount: '$140.00', status: 'Processing' },
-];
+const SERVICE_LABELS = { prayer: 'Prayer request', meditation: 'Meditation request' };
+const PAYOUTS_URL = `${WEB_BASE_URL}/dashboard/payouts`;
+const REFERRALS_URL = `${WEB_BASE_URL}/dashboard/referrals`;
 
-const REFERRALS = [
-  { initial: 'M', name: 'Maria T.', detail: 'Joined Sep 20, 2026', status: 'Earning' },
-  { initial: 'S', name: 'Sarah P.', detail: 'Joined Sep 10, 2026', status: 'Earning' },
-  { initial: 'D', name: 'Daniel K.', detail: 'Invited Sep 25, 2026', status: 'Pending' },
-  { initial: 'J', name: 'James O.', detail: 'Invited Oct 1, 2026', status: 'Pending' },
-];
+function money(cents) {
+  const n = (Number(cents) || 0) / 100;
+  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
-function StatusChip({ status }) {
-  const isPositive = status === 'Paid' || status === 'Earning';
-  return (
-    <View style={[styles.chip, isPositive ? styles.chipPositive : styles.chipPending]}>
-      <Text style={[styles.chipText, isPositive ? styles.chipTextPositive : styles.chipTextPending]}>
-        {status}
-      </Text>
-    </View>
-  );
+function shortDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// What the creator keeps from one sale: the price minus our fee and the card fee.
+function netOf(row, amountKey) {
+  const gross = Number(row[amountKey]) || 0;
+  const net = gross - (Number(row.platform_fee_cents) || 0) - (Number(row.stripe_fee_cents) || 0);
+  return Math.max(0, net);
+}
+
+// Calls the signed-in creator's Stripe function and returns { data } or { error }.
+async function callConnect(action) {
+  try {
+    const { data, error } = await supabase.functions.invoke('stripe-connect-onboarding', { body: { action } });
+    if (error) {
+      let message = 'Something went wrong. Please try again.';
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) message = body.error;
+      } catch {
+        // keep the generic message
+      }
+      return { error: message };
+    }
+    if (data?.error) return { error: data.error };
+    return { data };
+  } catch {
+    return { error: 'Couldn’t reach the server. Check your connection and try again.' };
+  }
 }
 
 export default function PayoutsReferralsScreen({ onBack, person }) {
-  // The real referral code (RT-00042). It only exists once the member's
-  // referral application is approved on the website dashboard; until then
-  // there is nothing to share.
-  const [realCode, setRealCode] = useState(undefined);
-  useEffect(() => {
-    let active = true;
-    supabase.rpc('get_my_referral_code').then(({ data }) => {
-      if (active) setRealCode(data || null);
-    });
-    return () => { active = false; };
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+
+  // Earnings
+  const [lifetimeCents, setLifetimeCents] = useState(0);
+  const [monthCents, setMonthCents] = useState(0);
+  const [sales, setSales] = useState([]);
+
+  // Stripe
+  const [payoutsEnabled, setPayoutsEnabled] = useState(false);
+  const [balance, setBalance] = useState(null); // { availableCents, pendingCents, minPayoutCents }
+  const [balanceError, setBalanceError] = useState(null);
+  const [paying, setPaying] = useState(false);
+  const [openingStripe, setOpeningStripe] = useState(false);
+
+  // Referrals
+  const [realCode, setRealCode] = useState(undefined); // undefined = loading, null = none
+  const [refStatus, setRefStatus] = useState(null);
+  const [referredCount, setReferredCount] = useState(0);
+  const [refEarningsCents, setRefEarningsCents] = useState(0);
+  const [tiers, setTiers] = useState([]);
+  const [refEarnings, setRefEarnings] = useState([]);
+
+  const load = useCallback(async () => {
+    setLoadError(null);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const uid = sessionData?.session?.user?.id;
+    if (!uid) {
+      setLoadError('You need to be signed in to see this.');
+      setLoading(false);
+      return;
+    }
+
+    // Offerings first, so their purchases can be found.
+    const offeringsRes = await supabase.from('offerings').select('id, title').eq('creator_auth_id', uid);
+    const offerings = offeringsRes.data || [];
+    const titleById = Object.fromEntries(offerings.map((o) => [o.id, o.title]));
+    const offeringIds = offerings.map((o) => o.id);
+
+    const [purchasesRes, servicesRes, profileRes, codeRes, statusRes, summaryRes, tiersRes, earningsRes] = await Promise.all([
+      offeringIds.length
+        ? supabase
+          .from('offering_purchases')
+          .select('offering_id, price_paid_cents, platform_fee_cents, stripe_fee_cents, purchased_at')
+          .in('offering_id', offeringIds)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from('service_requests')
+        .select('service_type, amount_cents, platform_fee_cents, stripe_fee_cents, paid_at')
+        .eq('creator_auth_id', uid)
+        .gt('amount_cents', 0)
+        .not('paid_at', 'is', null),
+      supabase.from('profiles').select('stripe_payouts_enabled').eq('id', uid).maybeSingle(),
+      supabase.rpc('get_my_referral_code'),
+      supabase.rpc('get_my_referral_status'),
+      supabase.rpc('get_my_referral_summary'),
+      supabase.from('referral_tiers').select('*').order('sort_order', { ascending: true }),
+      supabase
+        .from('referral_earnings')
+        .select('id, referred_name, offering_title, cut_cents, created_at')
+        .eq('referrer_auth_id', uid)
+        .order('created_at', { ascending: false })
+        .limit(6),
+    ]);
+
+    if (purchasesRes.error || servicesRes.error) {
+      setLoadError('Couldn’t load your earnings. Pull down to try again.');
+    }
+
+    const rows = [
+      ...(purchasesRes.data || []).map((p) => ({
+        key: `p-${p.offering_id}-${p.purchased_at}`,
+        date: p.purchased_at,
+        title: titleById[p.offering_id] || 'Offering',
+        net: netOf(p, 'price_paid_cents'),
+      })),
+      ...(servicesRes.data || []).map((s) => ({
+        key: `s-${s.service_type}-${s.paid_at}`,
+        date: s.paid_at,
+        title: SERVICE_LABELS[s.service_type] || 'Service request',
+        net: netOf(s, 'amount_cents'),
+      })),
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    setLifetimeCents(rows.reduce((sum, r) => sum + r.net, 0));
+    setMonthCents(rows.filter((r) => new Date(r.date) >= monthStart).reduce((sum, r) => sum + r.net, 0));
+    setSales(rows.slice(0, 6));
+
+    setRealCode(codeRes.data || null);
+    setRefStatus(statusRes.data || null);
+    const summary = Array.isArray(summaryRes.data) ? summaryRes.data[0] : summaryRes.data;
+    setReferredCount(summary?.referred_count || 0);
+    setRefEarningsCents(Number(summary?.earnings_cents) || 0);
+    setTiers(tiersRes.data || []);
+    setRefEarnings(earningsRes.data || []);
+
+    const enabled = !!profileRes.data?.stripe_payouts_enabled;
+    setPayoutsEnabled(enabled);
+    if (enabled) {
+      const res = await callConnect('balance');
+      setBalance(res.data || null);
+      setBalanceError(res.error || null);
+    } else {
+      setBalance(null);
+      setBalanceError(null);
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
+
+  function openWebsite(url) {
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Couldn’t open the page', `Open ${url.replace('https://', '')} in your browser.`);
+    });
+  }
+
+  function handleRequestPayout() {
+    if (!payoutsEnabled) return openWebsite(PAYOUTS_URL);
+    if (!balance) return Alert.alert('Balance unavailable', balanceError || 'Pull down to refresh and try again.');
+    if (balance.availableCents < balance.minPayoutCents) {
+      return Alert.alert('Not enough to pay out yet', `You need at least ${money(balance.minPayoutCents)} available. You have ${money(balance.availableCents)}.`);
+    }
+    Alert.alert(
+      'Request payout',
+      `Send ${money(balance.availableCents)} to your bank account? It usually arrives in 1 to 3 business days.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: `Pay out ${money(balance.availableCents)}`,
+          onPress: async () => {
+            setPaying(true);
+            const res = await callConnect('payout');
+            setPaying(false);
+            if (res.error) return Alert.alert('Payout didn’t go through', res.error);
+            const arrival = res.data?.arrivalDate
+              ? ` Expected around ${shortDate(new Date(res.data.arrivalDate * 1000).toISOString())}.`
+              : '';
+            Alert.alert('Payout requested', `${money(res.data?.amountCents)} is on its way to your bank.${arrival}`);
+            load();
+          },
+        },
+      ],
+    );
+  }
+
+  async function handleOpenStripe() {
+    setOpeningStripe(true);
+    const res = await callConnect('dashboard');
+    setOpeningStripe(false);
+    if (res.error || !res.data?.url) return Alert.alert('Couldn’t open Stripe', res.error || 'Please try again.');
+    openWebsite(res.data.url);
+  }
+
   const referralCode = realCode || (realCode === undefined ? '…' : 'Not approved yet');
   const referralLink = realCode ? `${WEB_BASE_URL}/join?ref=${encodeURIComponent(realCode)}` : null;
 
-  function handleRequestPayout() {
-    Alert.alert('Request Payout', 'Payout requests aren’t available yet — this is coming in a later part of the build.');
+  function notApprovedAlert() {
+    const body = refStatus === 'pending'
+      ? 'Your referral application is being reviewed. Your code appears here once you are approved.'
+      : 'Apply to the referral program from the Referrals page of your dashboard at rootedtogether.club. Your code appears here once you are approved.';
+    Alert.alert('No referral code yet', body);
   }
 
   async function handleCopyCode() {
-    if (!realCode) {
-      return Alert.alert('No referral code yet', 'Apply to the referral program from the Referrals page of your dashboard at rootedtogether.club. Your code appears here once you are approved.');
-    }
+    if (!realCode) return notApprovedAlert();
     try {
       await Share.share({ message: realCode });
     } catch (e) {
@@ -81,17 +255,31 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
   }
 
   async function handleShareLink() {
-    if (!realCode) {
-      return Alert.alert('No referral code yet', 'Apply to the referral program from the Referrals page of your dashboard at rootedtogether.club. Your code appears here once you are approved.');
-    }
+    if (!realCode) return notApprovedAlert();
     try {
       await Share.share({
-        message: `Join me on Rooted Together. Get the app and use my invite code ${realCode} when you sign up: ${referralLink}`,
+        message: `Join me on Rooted Together. Open this to get the app, and my invite code ${realCode} is filled in for you: ${referralLink}`,
       });
     } catch (e) {
       // User dismissed the share sheet — nothing to do.
     }
   }
+
+  // Tier maths, from the live referral_tiers rows.
+  const currentTier = tiers.length
+    ? [...tiers].reverse().find((t) => referredCount >= t.min_referrals) || null
+    : null;
+  const nextTier = tiers.find((t) => referredCount < t.min_referrals) || null;
+  const tierLine = !tiers.length
+    ? null
+    : nextTier
+      ? `${nextTier.min_referrals - referredCount} more ${nextTier.min_referrals - referredCount === 1 ? 'person' : 'people'} to reach ${nextTier.name}${currentTier ? '' : ', where your earnings begin'} (${nextTier.rate_percent}% of net sales).`
+      : 'You are on the top tier.';
+
+  const connected = payoutsEnabled;
+  const canPayOut = connected && balance && balance.availableCents >= balance.minPayoutCents;
+  const heroLabel = connected ? 'Available Balance' : 'Lifetime earned';
+  const heroAmount = connected ? (balance ? money(balance.availableCents) : '—') : money(lifetimeCents);
 
   return (
     <View style={styles.wrap}>
@@ -103,111 +291,153 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
         <View style={styles.backBtn} />
       </View>
 
-      <ScrollView
-        style={styles.wrap}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40 }}
-      >
-        {/* Balance hero card */}
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceAmount}>$482.00</Text>
-
-          <View style={styles.balanceRow}>
-            <View style={{ paddingTop: 12, marginRight: 18 }}>
-              <Text style={styles.balanceSubLabel}>Pending</Text>
-              <Text style={styles.balanceSubValue}>$120.00</Text>
-            </View>
-            <View style={{ paddingTop: 12 }}>
-              <Text style={styles.balanceSubLabel}>Lifetime earned</Text>
-              <Text style={styles.balanceSubValue}>$2,340.00</Text>
-            </View>
-          </View>
-
-          <Text style={styles.balanceNote}>Includes $140.00 from referrals this month</Text>
-
-          <TouchableOpacity style={styles.payoutBtn} onPress={handleRequestPayout} activeOpacity={0.85}>
-            <Text style={styles.payoutBtnText}>Request Payout</Text>
-          </TouchableOpacity>
+      {loading ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.brown} />
         </View>
+      ) : (
+        <ScrollView
+          style={styles.wrap}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 18, paddingBottom: 40 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brown} />}
+        >
+          {loadError ? <Text style={styles.errorNote}>{loadError}</Text> : null}
 
-        {/* Payout history */}
-        <Text style={styles.sectionLabel}>Payout History</Text>
-        <View style={styles.card}>
-          {PAYOUT_HISTORY.map((row, i) => (
-            <View
-              key={row.date}
-              style={[styles.historyRow, i < PAYOUT_HISTORY.length - 1 && styles.rowBorder]}
+          {/* Balance hero card */}
+          <View style={styles.balanceCard}>
+            <Text style={styles.balanceLabel}>{heroLabel}</Text>
+            <Text style={styles.balanceAmount}>{heroAmount}</Text>
+
+            <View style={styles.balanceRow}>
+              {connected ? (
+                <View style={{ paddingTop: 12, marginRight: 18 }}>
+                  <Text style={styles.balanceSubLabel}>Pending</Text>
+                  <Text style={styles.balanceSubValue}>{balance ? money(balance.pendingCents) : '—'}</Text>
+                </View>
+              ) : null}
+              <View style={{ paddingTop: 12, marginRight: 18 }}>
+                <Text style={styles.balanceSubLabel}>This month</Text>
+                <Text style={styles.balanceSubValue}>{money(monthCents)}</Text>
+              </View>
+              {connected ? (
+                <View style={{ paddingTop: 12 }}>
+                  <Text style={styles.balanceSubLabel}>Lifetime earned</Text>
+                  <Text style={styles.balanceSubValue}>{money(lifetimeCents)}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <Text style={styles.balanceNote}>
+              {connected
+                ? (balanceError || 'Earnings are after platform and card fees. Referral cuts are tracked separately below.')
+                : 'Earnings are after platform and card fees. Finish Stripe setup on the website to get paid out.'}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.payoutBtn, connected && !canPayOut && styles.payoutBtnDisabled]}
+              onPress={handleRequestPayout}
+              activeOpacity={0.85}
+              disabled={paying}
             >
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <Text style={styles.historyDate}>{row.date}</Text>
-                <Text style={styles.historyMethod}>{row.method}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                <StatusChip status={row.status} />
-                <Text style={styles.historyAmount}>{row.amount}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Referral link */}
-        <Text style={styles.sectionLabel}>Your Referral Link</Text>
-        <View style={styles.card}>
-          <Text style={styles.referralHint}>
-            Share your link. People who sign up in the app with your code are connected to you, and you earn a cut of their net purchases.
-          </Text>
-
-          <View style={styles.codeBox}>
-            <Text style={styles.codeText}>{referralCode}</Text>
-            <Ionicons name="copy-outline" size={18} color={colors.brownLight} />
-          </View>
-
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity style={styles.copyBtn} onPress={handleCopyCode} activeOpacity={0.85}>
-              <Text style={styles.copyBtnText}>Copy Code</Text>
+              {paying
+                ? <ActivityIndicator color={colors.brown} />
+                : <Text style={styles.payoutBtnText}>{connected ? 'Request Payout' : 'Set up payouts'}</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.shareBtn} onPress={handleShareLink} activeOpacity={0.85}>
-              <Text style={styles.shareBtnText}>Share Link</Text>
+            {connected && balance && !canPayOut ? (
+              <Text style={styles.balanceNote}>Payouts start at {money(balance.minPayoutCents)} available.</Text>
+            ) : null}
+          </View>
+
+          {connected ? (
+            <TouchableOpacity style={styles.linkRow} onPress={handleOpenStripe} disabled={openingStripe} activeOpacity={0.7}>
+              <Text style={styles.linkRowText}>{openingStripe ? 'Opening…' : 'Payout history and bank details in Stripe'}</Text>
+              <Ionicons name="open-outline" size={16} color={colors.brownLight} />
             </TouchableOpacity>
-          </View>
-        </View>
+          ) : null}
 
-        {/* Referral stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statTile}>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Invited</Text>
+          {/* Recent sales */}
+          <Text style={styles.sectionLabel}>Recent Sales</Text>
+          <View style={styles.card}>
+            {sales.length === 0 ? (
+              <Text style={styles.emptyText}>No sales yet. When someone buys from you or pays for a prayer or meditation request, it shows here.</Text>
+            ) : sales.map((row, i) => (
+              <View key={row.key} style={[styles.historyRow, i < sales.length - 1 && styles.rowBorder]}>
+                <View style={{ flex: 1, paddingRight: 10 }}>
+                  <Text style={styles.historyDate}>{row.title}</Text>
+                  <Text style={styles.historyMethod}>{shortDate(row.date)}</Text>
+                </View>
+                <Text style={styles.historyAmount}>{money(row.net)}</Text>
+              </View>
+            ))}
           </View>
-          <View style={styles.statTile}>
-            <Text style={styles.statValue}>7</Text>
-            <Text style={styles.statLabel}>Joined</Text>
-          </View>
-          <View style={styles.statTile}>
-            <Text style={styles.statValue}>4</Text>
-            <Text style={styles.statLabel}>Earning</Text>
-          </View>
-        </View>
 
-        {/* Referral list */}
-        <Text style={styles.sectionLabel}>Your Referrals</Text>
-        <View style={styles.card}>
-          {REFERRALS.map((r, i) => (
-            <View
-              key={r.name}
-              style={[styles.referralRow, i < REFERRALS.length - 1 && styles.rowBorder]}
-            >
-              <View style={styles.referralAvatar}>
-                <Text style={styles.referralAvatarText}>{r.initial}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.referralName}>{r.name}</Text>
-                <Text style={styles.referralDetail}>{r.detail}</Text>
-              </View>
-              <StatusChip status={r.status} />
+          {/* Referral link */}
+          <Text style={styles.sectionLabel}>Your Referral Link</Text>
+          <View style={styles.card}>
+            <Text style={styles.referralHint}>
+              Share your link. It opens the app with your code filled in. People who sign up in the app with your code are connected to you, and you earn a cut of their net purchases.
+            </Text>
+
+            <View style={styles.codeBox}>
+              <Text style={styles.codeText}>{referralCode}</Text>
+              <Ionicons name="copy-outline" size={18} color={colors.brownLight} />
             </View>
-          ))}
-        </View>
-      </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity style={styles.copyBtn} onPress={handleCopyCode} activeOpacity={0.85}>
+                <Text style={styles.copyBtnText}>Copy Code</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.shareBtn} onPress={handleShareLink} activeOpacity={0.85}>
+                <Text style={styles.shareBtnText}>Share Link</Text>
+              </TouchableOpacity>
+            </View>
+            {!realCode && realCode !== undefined ? (
+              <TouchableOpacity onPress={() => openWebsite(REFERRALS_URL)} style={{ paddingHorizontal: 18, paddingBottom: 18 }}>
+                <Text style={styles.inlineLink}>
+                  {refStatus === 'pending' ? 'Application under review' : 'Apply on the website'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Referral stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statTile}>
+              <Text style={styles.statValue}>{referredCount}</Text>
+              <Text style={styles.statLabel}>Signed up</Text>
+            </View>
+            <View style={styles.statTile}>
+              <Text style={styles.statValue}>{currentTier ? currentTier.name : '—'}</Text>
+              <Text style={styles.statLabel}>Tier</Text>
+            </View>
+            <View style={styles.statTile}>
+              <Text style={styles.statValue}>{money(refEarningsCents)}</Text>
+              <Text style={styles.statLabel}>Referral cuts</Text>
+            </View>
+          </View>
+          {tierLine ? <Text style={styles.tierLine}>{tierLine}</Text> : null}
+
+          {/* Referral earnings */}
+          <Text style={styles.sectionLabel}>Recent Referral Earnings</Text>
+          <View style={styles.card}>
+            {refEarnings.length === 0 ? (
+              <Text style={styles.emptyText}>Nothing yet. When someone you invited buys something or pays for a request, your cut appears here.</Text>
+            ) : refEarnings.map((r, i) => (
+              <View key={r.id} style={[styles.referralRow, i < refEarnings.length - 1 && styles.rowBorder]}>
+                <View style={styles.referralAvatar}>
+                  <Text style={styles.referralAvatarText}>{(r.referred_name || '?').trim().charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.referralName}>{r.referred_name || 'A member you invited'}</Text>
+                  <Text style={styles.referralDetail}>{[r.offering_title, shortDate(r.created_at)].filter(Boolean).join(' · ')}</Text>
+                </View>
+                <Text style={styles.historyAmount}>{money(r.cut_cents)}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.tierLine}>Referral cuts are worked out on net sales and tracked here. They are not part of your Stripe balance.</Text>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -251,6 +481,19 @@ const styles = StyleSheet.create({
   balanceNote: { fontSize: 12, fontStyle: 'italic', color: 'rgba(255,255,255,0.7)', marginTop: 14 },
   payoutBtn: { backgroundColor: colors.white, borderRadius: 999, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
   payoutBtnText: { color: colors.brown, fontSize: 14.5, fontWeight: '700' },
+  payoutBtnDisabled: { opacity: 0.55 },
+  linkRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 14, paddingHorizontal: 4, marginTop: 6,
+  },
+  linkRowText: { fontSize: 13.5, fontWeight: '600', color: colors.brownLight },
+  inlineLink: { fontSize: 13, fontWeight: '700', color: colors.brownLight, textDecorationLine: 'underline' },
+  emptyText: { fontSize: 13, color: colors.textSoft, lineHeight: 18, padding: 16 },
+  tierLine: { fontSize: 12.5, color: colors.textSoft, lineHeight: 18, marginTop: 12 },
+  errorNote: {
+    fontSize: 13, color: colors.errorText, backgroundColor: colors.errorBg, borderWidth: 1,
+    borderColor: colors.errorBorder, borderRadius: 10, padding: 12, marginBottom: 14,
+  },
 
   historyRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14,

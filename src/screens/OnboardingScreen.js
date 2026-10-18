@@ -13,6 +13,7 @@ import { serif } from '../theme';
 import { softHaptic } from '../haptics';
 import { SUPPORT_OPTIONS } from '../flows';
 import { WEB_BASE_URL } from '../config';
+import { getPendingCode, subscribeToReferral } from '../referral';
 
 // The new, short sign-up: an account screen, then a few tap-to-answer slides.
 // Everything the old long form asked that isn't collected here lives in the
@@ -118,7 +119,7 @@ function buildFields(role, data, dob) {
 export default function OnboardingScreen({ onSubmit, onLogin }) {
   const insets = useSafeAreaInsets();
   const [data, setData] = useState({
-    email: '', password: '', referral: '', role: null,
+    email: '', password: '', referral: getPendingCode() || '', role: null,
     needs: [], focus: [], goals: [],
     forWho: 'Myself', faith: null,
     name: '', day: '', month: '', year: '',
@@ -134,6 +135,11 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
   const advancing = useRef(false);
 
   useEffect(() => () => { mounted.current = false; }, []);
+
+  // A referral link opened while sign-up is showing fills the code in.
+  useEffect(() => subscribeToReferral((code) => {
+    setData((d) => (d.referral ? d : { ...d, referral: code }));
+  }), []);
 
   const steps = stepsFor(data.role);
   const stepKey = steps[Math.min(index, steps.length - 1)];
@@ -288,7 +294,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
           </TouchableOpacity>
         </View>
 
-        {showRef ? (
+        {showRef || data.referral ? (
           <View style={[styles.inputWrap, { marginTop: 10 }]}>
             <Ionicons name="gift-outline" size={20} color={DARK.faint} />
             <TextInput

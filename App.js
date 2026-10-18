@@ -12,6 +12,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import HomeTabs from './src/screens/HomeTabs';
 import { configureNotifications, unregisterPushNotifications } from './src/notifications';
+import { startReferralCapture, clearPendingCode } from './src/referral';
 
 // Show notifications as a banner even while the app is open (no-op in Expo Go).
 configureNotifications();
@@ -31,6 +32,10 @@ export default function App() {
   // keep listening afterwards — this is what picks up both a fresh login
   // from LoginScreen and the automatic sign-in right after a new sign-up,
   // without either screen having to manually flip any state itself.
+  // Pick up a referral code from an invite link or Google Play's install
+  // referrer, so the sign-up can fill it in automatically.
+  useEffect(() => startReferralCapture(), []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -87,6 +92,7 @@ export default function App() {
       // signing in, so the app doesn't flash up behind it), then sign in
       // with the same credentials so there's already a real session by the
       // time "Start exploring" is tapped.
+      clearPendingCode();
       setWelcome(true);
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: fields.Email,

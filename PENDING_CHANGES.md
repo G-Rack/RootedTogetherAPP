@@ -25,8 +25,22 @@ with native code, or touches permissions, icon, splash or the Expo SDK.)
       "Finish your profile" card on Explore + a "Complete your profile" checklist (Profile tab) track what's
       left. Creator goals are saved into the "Anything Else" field. Old sign-up screens (StepScreen,
       RoleSelectScreen, SignupDecisionScreen, ReferralThankYouScreen) are no longer used.
+      Follow-ups after Girik's first test: tapping an answer goes straight to the next slide (no Continue
+      button; Back still works), and the field being typed in now sits higher above the keyboard, including
+      elsewhere in the app (KeyboardAwareScrollView.js).
       (App.js, OnboardingScreen.js, WelcomeScreen.js, ProfileChecklistScreen.js, FinishProfileCard.js,
       DarkUI.js, profileChecklist.js, HomeTabs.js, ExploreScreen.js, ProfileScreen.js)
+- [ ] Referrals + live Payouts (Expo Go only, no new build needed): sign-up has an optional "Have a referral
+      code?" box under the password (format RT-00042). The code is sent as `referredByCode` and the server links
+      the new account to the member who invited them. Settings > Payouts & Referrals is now LIVE (no made-up
+      numbers): real Stripe balance / pending, working "Request Payout" (min $10), recent sales and lifetime /
+      this-month earnings (net of fees, includes paid prayer / meditation requests), the member's real code and
+      share link, signed-up count, tier progress and recent referral cuts. Pull down to refresh. Creators who
+      have not finished Stripe setup see their earnings and a "Set up payouts" button that opens the website.
+      Referral cuts are a tracked ledger, NOT part of the Stripe balance (no automatic payout of them yet).
+      Server side (already live): cuts are worked out on net sales and count paid prayer / meditation requests.
+      Web: /join page (Open the app button), updated Referrals page, StoreBadges referrer - needs a push.
+      (App.js, OnboardingScreen.js, PayoutsReferralsScreen.js, src/referral.js)
 - [x] Seeker / Assistant profiles: the pencil on the profile picture opens the photo picker to change
       the photo (was opening "Complete your profile") (ProfileScreen.js)
 - [ ] Sign-up: the page stays put and scrolls smoothly just enough to keep the field you're typing in above
@@ -50,7 +64,14 @@ with native code, or touches permissions, icon, splash or the Expo SDK.)
       (ProfileScreen.js)
 
 ## Pending - NEEDS A NEW BUILD (adds native code; cannot ship as an OTA update)
-Install first: `npx expo install expo-haptics expo-notifications expo-device expo-constants`
+Install first: `npx expo install expo-haptics expo-notifications expo-device expo-constants expo-application`
+- [ ] Referral links open the app with the code filled in: the app now has a `rootedtogether://` link scheme
+      (app.json) and reads Google Play's install referrer on first launch (expo-application, Android only).
+      The website /join page "Open the app" button uses the scheme; its Play Store link carries
+      `&referrer=RT-00042`. Needs the store URLs filled in lib/config.js (PLAY_STORE_URL, APP_STORE_URL) once
+      live. Cannot be tested in Expo Go (typing the code by hand still works there). iPhone has no install
+      referrer, so iPhone people tap "Open the app" if already installed, or paste the code (the page copies it).
+      (src/referral.js, App.js, OnboardingScreen.js, app.json)
 - [ ] Double-tap a post's picture/text to like it (with a haptic buzz and a pop-up heart); double-tap a
       community post to mark it Helpful. The heart / Helpful buttons also buzz when you like.
       (DoubleTapLike.js, haptics.js, PostCard.js, CommunityPostCard.js) - review in Expo Go.
@@ -60,6 +81,11 @@ Install first: `npx expo install expo-haptics expo-notifications expo-device exp
       realFamilyApi.js, postsApi.js, app.json; server: `send-push` edge function + `push_tokens` table)
 
 ## Not yet done (later)
+- [ ] Sign in with Apple / Google: the buttons on the new sign-up only say "coming soon". Needs the providers
+      set up in Supabase, an OAuth flow in the app, a server step to finish sign-up for social users, and a
+      NEW BUILD (not Expo Go). Apple sign-in is also required by the App Store when other social logins exist.
+- [ ] Delete the old unused sign-up screens once the new one is confirmed (StepScreen, RoleSelectScreen,
+      SignupDecisionScreen, ReferralThankYouScreen).
 - [ ] Play Console Data safety form - do it AFTER Google Play payments/subscription are set up
       (add Financial info -> Purchase history, plus push notification token / device ID).
 
