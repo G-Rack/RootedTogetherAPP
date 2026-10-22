@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { WEB_BASE_URL } from '../config';
-import { supabase } from '../supabaseClient';
 import {
   PLANS, isBillingConfigured, loadPlanPackages, purchasePlan, restorePurchases, storeLabel,
 } from '../billing';
@@ -27,52 +26,26 @@ import {
 // person Premium and continues whatever they were doing. Until RevenueCat
 // keys are filled in, the button falls back to that free upgrade so
 // testing isn't blocked.
+// One membership, one perk list, for everyone (Seekers, Assistants, Leaders,
+// Mothers, Pastors, Churches). Only list what Premium really unlocks today:
+// starting/replying to conversations and joining or leading a Spiritual Family.
+// Add new lines here only once the feature is built and gated.
 const PERKS = {
-  conversations: 'Unlimited conversations with Leaders, Mothers, Pastors & Assistants',
-  family: 'Join a Spiritual Family circle',
-  marketplace: 'Save on Marketplace offerings from Spiritual Leaders',
-  active: "See who's active right now",
-  priority: "Priority replies from Leaders' teams",
-};
-
-// Creator accounts (Spiritual Leaders, Mothers, Pastors, Churches) see the
-// same membership described in terms of what they do on the platform: reach
-// their people, lead a family, sell courses, run a community.
-const CREATOR_ROLES = new Set(['mother', 'pastor', 'influencer', 'church']);
-// Only Mothers and Pastors have a Spiritual Family to create and lead.
-const FAMILY_LEADER_ROLES = new Set(['mother', 'pastor']);
-
-const CREATOR_PERKS = {
-  conversations: 'Message seekers, assistants and fellow creators — unlimited conversations',
-  family: 'Create and lead your own Spiritual Family circle',
-  courses: 'Sell your courses and offerings in the Marketplace',
-  community: 'Start and lead communities around your ministry',
-  active: "See who's active right now",
-};
-
-const CREATOR_CONTEXT = {
-  chat: {
-    perkOrder: ['conversations', 'family', 'courses', 'community', 'active'],
-    footnote: 'Someone messaged you? You can read it for free — Premium lets you reply and reach out.',
-  },
-  family: {
-    perkOrder: ['family', 'conversations', 'courses', 'community', 'active'],
-    footnote: 'Browsing Spiritual Families is always free.',
-  },
+  conversations: 'Start and reply to unlimited conversations with Leaders, Mothers, Pastors, Assistants & Seekers',
+  family: 'Join or lead a Spiritual Family circle',
+  growth: 'New Premium features as they launch',
 };
 
 const CONTEXT = {
   chat: {
     topBarTitle: 'Chat',
-    icon: 'chatbubble-ellipses-outline',
-    perkOrder: ['conversations', 'family', 'marketplace', 'active', 'priority'],
-    footnote: 'Someone messaged you? You can read it for free — Premium lets you reply.',
+    perkOrder: ['conversations', 'family', 'growth'],
+    footnote: 'Someone messaged you? You can read it for free — Premium lets you reply and reach out.',
   },
   family: {
     topBarTitle: 'Family',
-    icon: 'heart-outline',
-    perkOrder: ['family', 'conversations', 'marketplace', 'active', 'priority'],
-    footnote: 'Browsing Spiritual Families is always free — Premium is only needed to request to join one.',
+    perkOrder: ['family', 'conversations', 'growth'],
+    footnote: 'Browsing Spiritual Families is always free — Premium is only needed to join or lead one.',
   },
 };
 
@@ -84,53 +57,18 @@ export default function PremiumUpsellScreen({ onUpgrade, targetName, context = '
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
 
-  // null = still checking which kind of account this is.
-  const [isCreator, setIsCreator] = useState(null);
-  const [canLeadFamily, setCanLeadFamily] = useState(false);
-  const base = CONTEXT[context] || CONTEXT.chat;
-  const creatorCfg = CREATOR_CONTEXT[context] || CREATOR_CONTEXT.chat;
-  const cfg = isCreator
-    ? { ...base, ...creatorCfg, perkOrder: creatorCfg.perkOrder.filter((k) => k !== 'family' || canLeadFamily) }
-    : base;
-  const perks = isCreator ? CREATOR_PERKS : PERKS;
+  const cfg = CONTEXT[context] || CONTEXT.chat;
+  const perks = PERKS;
   const billing = isBillingConfigured();
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data: sess } = await supabase.auth.getSession();
-        const uid = sess?.session?.user?.id;
-        if (!uid) { if (!cancelled) setIsCreator(false); return; }
-        const { data } = await supabase.from('profiles').select('role').eq('id', uid).maybeSingle();
-        if (!cancelled) {
-          setCanLeadFamily(FAMILY_LEADER_ROLES.has(data?.role));
-          setIsCreator(CREATOR_ROLES.has(data?.role));
-        }
-      } catch (e) {
-        if (!cancelled) setIsCreator(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     if (!billing) return;
     loadPlanPackages().then(setPackages);
   }, [billing]);
 
-  let subtitle;
-  if (isCreator) {
-    subtitle = targetName
-      ? `Upgrade to message ${targetName}${canLeadFamily ? ', lead a Spiritual Family,' : ''} and grow your community.`
-      : (canLeadFamily
-        ? 'Grow your ministry on Rooted Together — message your community, lead a Spiritual Family, and share your courses and offerings.'
-        : 'Grow your ministry on Rooted Together — message your community and share your courses and offerings.');
-  } else {
-    subtitle = targetName
-      ? `Upgrade to message ${targetName}, join a Spiritual Family circle, and save on the Marketplace.`
-      : 'Message Leaders directly, join a Spiritual Family circle, and save on the Marketplace.';
-  }
+  const subtitle = targetName
+    ? `Upgrade to message ${targetName}, join or lead a Spiritual Family circle, and keep growing in community.`
+    : 'Message Leaders and the community directly, and join or lead a Spiritual Family circle.';
 
   // Store prices win once loaded (they're localized); otherwise our list prices.
   const priceOf = (key) => packages[key]?.product?.priceString || PLANS[key].price;
@@ -223,8 +161,8 @@ export default function PremiumUpsellScreen({ onUpgrade, targetName, context = '
           <View style={styles.iconCircle}>
             <Ionicons name="star-outline" size={28} color={colors.brown} />
           </View>
-          <Text style={styles.title}>{isCreator ? 'Unlock Creator Premium' : 'Unlock Premium'}</Text>
-          {isCreator === null ? null : <Text style={styles.subtitle}>{subtitle}</Text>}
+          <Text style={styles.title}>Unlock Premium</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
 
         <View style={styles.plans} accessibilityRole="radiogroup">
@@ -233,10 +171,8 @@ export default function PremiumUpsellScreen({ onUpgrade, targetName, context = '
         </View>
 
         <View style={styles.perksCard}>
-          <Text style={styles.perksLabel}>{isCreator ? 'EVERYTHING IN CREATOR PREMIUM' : 'EVERYTHING IN PREMIUM'}</Text>
-          {isCreator === null ? (
-            <ActivityIndicator color={colors.brown} />
-          ) : cfg.perkOrder.map((key) => (
+          <Text style={styles.perksLabel}>EVERYTHING IN PREMIUM</Text>
+          {cfg.perkOrder.map((key) => (
             <View style={styles.perkRow} key={key}>
               <Ionicons name="checkmark" size={18} color={colors.brown} />
               <Text style={styles.perkText}>{perks[key]}</Text>
@@ -255,12 +191,15 @@ export default function PremiumUpsellScreen({ onUpgrade, targetName, context = '
           <TouchableOpacity onPress={handleRestore} disabled={restoring} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
             {restoring ? <ActivityIndicator size="small" color={colors.brown} /> : <Text style={styles.linkText}>Restore purchases</Text>}
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => Linking.openURL(`${WEB_BASE_URL}/terms`)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
+            <Text style={styles.linkText}>Terms</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => Linking.openURL(`${WEB_BASE_URL}/privacy`)} hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}>
             <Text style={styles.linkText}>Privacy</Text>
           </TouchableOpacity>
         </View>
 
-        {isCreator === null ? null : <Text style={styles.footnote}>{cfg.footnote}</Text>}
+        <Text style={styles.footnote}>{cfg.footnote}</Text>
       </ScrollView>
     </View>
   );

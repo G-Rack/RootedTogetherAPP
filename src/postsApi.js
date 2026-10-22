@@ -68,11 +68,17 @@ export async function fetchCommentCounts(postIds) {
   return counts;
 }
 
+// Liking twice is harmless (ON CONFLICT DO NOTHING) and real failures are
+// thrown, so a fast double-tap can't leave a like in the wrong state.
 export async function toggleLike(postId, myAuthId, currentlyLiked) {
   if (currentlyLiked) {
-    await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_auth_id', myAuthId);
+    const { error } = await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_auth_id', myAuthId);
+    if (error) throw error;
   } else {
-    await supabase.from('post_likes').insert({ post_id: postId, user_auth_id: myAuthId });
+    const { error } = await supabase
+      .from('post_likes')
+      .upsert({ post_id: postId, user_auth_id: myAuthId }, { onConflict: 'post_id,user_auth_id', ignoreDuplicates: true });
+    if (error) throw error;
   }
 }
 

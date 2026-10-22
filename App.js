@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import KeyboardAwareScrollView from './src/components/KeyboardAwareScrollView';
 import { SafeAreaProvider, SafeAreaView as SafeAreaInsetView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { colors, serif } from './src/theme';
@@ -163,39 +162,38 @@ export default function App() {
     );
   }
 
+  // Still working out whether someone is signed in: a quiet dark splash.
+  if (session === undefined) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <View style={styles.splash}>
+          <Text style={styles.splashText}>Loading…</Text>
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Signed out: log in / reset password, in the same dark style as sign-up.
   return (
     <SafeAreaProvider>
-    <SafeAreaInsetView style={styles.safe}>
-      <StatusBar style="dark" />
-      {/* Keeps the field being typed in visible above the keyboard by
-          scrolling just enough, rather than pushing the whole form up. */}
-      <KeyboardAwareScrollView contentContainerStyle={styles.scroll}>
-          <Text style={styles.brand}>Rooted Together</Text>
-
-          <View style={styles.panel}>
-            {session === undefined && (
-              <Text style={styles.loadingText}>Loading…</Text>
-            )}
-
-            {session === null && authScreen === 'login' && (
-              <LoginScreen
-                onBack={() => setAuthScreen('signup')}
-                onLoggedIn={() => {}}
-                onForgotPassword={() => setAuthScreen('forgot')}
-              />
-            )}
-
-            {session === null && authScreen === 'forgot' && (
-              <ForgotPasswordScreen onBack={() => setAuthScreen('login')} />
-            )}
-          </View>
-      </KeyboardAwareScrollView>
-    </SafeAreaInsetView>
+      <StatusBar style="light" />
+      {authScreen === 'forgot' ? (
+        <ForgotPasswordScreen onBack={() => setAuthScreen('login')} />
+      ) : (
+        <LoginScreen
+          onBack={() => setAuthScreen('signup')}
+          onLoggedIn={() => {}}
+          onForgotPassword={() => setAuthScreen('forgot')}
+        />
+      )}
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  splash: { flex: 1, backgroundColor: '#2A1A10', alignItems: 'center', justifyContent: 'center' },
+  splashText: { color: '#FBF6EF', fontSize: 15 },
   safe: { flex: 1, backgroundColor: colors.cream },
   scroll: { padding: 20, paddingTop: 24, paddingBottom: 60 },
   // Signed-in app fills the whole screen (no card frame or brand title).

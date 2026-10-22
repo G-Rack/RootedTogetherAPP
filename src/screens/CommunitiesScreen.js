@@ -187,6 +187,8 @@ export default function CommunitiesScreen({ session, onOpenCommunity, onCreateCo
                 <Text style={styles.cardName} numberOfLines={2}>{item.name}</Text>
                 <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
                 <Text style={styles.cardMeta}>{formatMembers(item.member_count)}</Text>
+                {/* Pushes Join to the bottom so it lines up across a row. */}
+                <View style={{ flex: 1 }} />
                 <TouchableOpacity
                   style={[styles.joinBtn, isJoined && styles.joinBtnJoined]}
                   onPress={() => handleToggleJoin(item.id)}
@@ -239,8 +241,8 @@ const styles = StyleSheet.create({
   cardTile: { height: 74, backgroundColor: colors.creamDark, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   cardTileImage: { width: '100%', height: '100%' },
   cardTileIcon: { fontSize: 28 },
-  cardBody: { padding: 10 },
-  cardName: { fontSize: 13.5, fontWeight: '700', color: colors.text, lineHeight: 17, marginBottom: 3 },
+  cardBody: { padding: 10, flex: 1 },
+  cardName: { fontSize: 13.5, fontWeight: '700', color: colors.text, lineHeight: 17, marginBottom: 3, minHeight: 34 },
   cardDesc: { fontSize: 11, color: colors.textSoft, lineHeight: 14, marginBottom: 8, minHeight: 28 },
   cardMeta: { fontSize: 10.5, color: colors.textSoft, marginBottom: 8 },
   joinBtn: { textAlign: 'center', paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: colors.brown, alignItems: 'center', overflow: 'visible' },

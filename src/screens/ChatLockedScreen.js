@@ -51,15 +51,7 @@ export default function ChatLockedScreen({ onUpgrade, targetName }) {
         <View style={styles.perksCard}>
           <View style={styles.perkRow}>
             <Ionicons name="checkmark" size={17} color={colors.brown} />
-            <Text style={styles.perkText}>Start unlimited new conversations</Text>
-          </View>
-          <View style={styles.perkRow}>
-            <Ionicons name="checkmark" size={17} color={colors.brown} />
-            <Text style={styles.perkText}>See who's active right now</Text>
-          </View>
-          <View style={styles.perkRow}>
-            <Ionicons name="checkmark" size={17} color={colors.brown} />
-            <Text style={styles.perkText}>Priority reply from Leaders' teams</Text>
+            <Text style={styles.perkText}>Start and reply to unlimited conversations</Text>
           </View>
         </View>
 

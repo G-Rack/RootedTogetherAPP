@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors, serif } from '../theme';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { supabase } from '../supabaseClient';
-import PasswordInput from '../components/PasswordInput';
+import {
+  AuthShell, BrandHeader, PillInput, PrimaryButton, ErrorNote, DARK,
+} from '../components/DarkUI';
 
 // For returning users who already created an account during sign-up.
+// Same dark look as the sign-up screens.
 export default function LoginScreen({ onBack, onLoggedIn, onForgotPassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +20,7 @@ export default function LoginScreen({ onBack, onLoggedIn, onForgotPassword }) {
       return;
     }
     setSubmitting(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setSubmitting(false);
     if (signInError) {
       if (/confirm/i.test(signInError.message || '')) {
@@ -32,74 +34,51 @@ export default function LoginScreen({ onBack, onLoggedIn, onForgotPassword }) {
   }
 
   return (
-    <View>
-      <Text style={styles.h1}>Log in</Text>
-      <Text style={styles.sub}>Welcome back — enter the email and password you signed up with.</Text>
+    <AuthShell>
+      <BrandHeader tagline="Welcome back. Log in to pick up where you left off." />
 
-      {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
+      <PillInput
+        icon="mail-outline"
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Email address"
+        keyboardType="email-address"
+        textContentType="username"
+        accessibilityLabel="Email"
+      />
+      <PillInput
+        icon="lock-closed-outline"
+        secure
+        style={{ marginTop: 10 }}
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Password"
+        // Same iOS autofill workaround as PasswordInput.js.
+        textContentType="oneTimeCode"
+        accessibilityLabel="Password"
+      />
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          textContentType="username"
-        />
+      <TouchableOpacity onPress={onForgotPassword} disabled={submitting} style={styles.forgot} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={styles.forgotText}>Forgot password?</Text>
+      </TouchableOpacity>
+
+      <View style={{ marginTop: 16 }}>
+        <ErrorNote message={error} />
+        <PrimaryButton label="Log in" variant="gold" busy={submitting} onPress={handleLogin} />
       </View>
 
-      <View style={styles.field}>
-        <Text style={styles.label}>Password</Text>
-        <PasswordInput value={password} onChangeText={setPassword} />
-        <TouchableOpacity onPress={onForgotPassword} style={styles.forgotLink} disabled={submitting}>
-          <Text style={styles.forgotLinkText}>Forgot password?</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.nav}>
-        <TouchableOpacity style={styles.ghostBtn} onPress={onBack} disabled={submitting}>
-          <Text style={styles.ghostBtnText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btn, submitting && styles.btnDisabled]} onPress={handleLogin} disabled={submitting}>
-          <Text style={styles.btnText}>{submitting ? 'Logging in…' : 'Log in'}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      <View style={{ flex: 1, minHeight: 24 }} />
+      <TouchableOpacity onPress={onBack} disabled={submitting} style={styles.switchRow} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Text style={styles.switchText}>New here? <Text style={styles.switchLink}>Create account</Text></Text>
+      </TouchableOpacity>
+    </AuthShell>
   );
 }
 
 const styles = StyleSheet.create({
-  h1: { fontFamily: serif, fontSize: 24, color: colors.brown, marginBottom: 6, fontWeight: '700' },
-  sub: { fontSize: 14.5, color: colors.textSoft, marginBottom: 22 },
-  field: { marginBottom: 20 },
-  label: { fontSize: 13.5, fontWeight: '600', color: colors.brown, marginBottom: 6 },
-  input: {
-    fontSize: 15,
-    padding: 13,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(107,66,38,0.25)',
-    backgroundColor: colors.white,
-    color: colors.text,
-  },
-  errorBox: {
-    backgroundColor: colors.errorBg, borderWidth: 1, borderColor: colors.errorBorder,
-    borderRadius: 8, padding: 12, marginBottom: 16,
-  },
-  errorText: { color: colors.errorText, fontSize: 13.5 },
-  forgotLink: { alignSelf: 'flex-end', marginTop: 10 },
-  forgotLinkText: { color: colors.brownLight, fontSize: 13.5, fontWeight: '600' },
-  nav: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
-  btn: { backgroundColor: colors.brown, paddingVertical: 13, paddingHorizontal: 26, borderRadius: 999 },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { color: colors.white, fontSize: 15, fontWeight: '700' },
-  ghostBtn: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1, borderColor: colors.brownPale },
-  ghostBtnText: { color: colors.brown, fontSize: 15, fontWeight: '600' },
+  forgot: { alignSelf: 'flex-end', marginTop: 14 },
+  forgotText: { color: DARK.gold, fontSize: 14, fontWeight: '600' },
+  switchRow: { alignItems: 'center', paddingVertical: 8 },
+  switchText: { fontSize: 15, color: DARK.soft },
+  switchLink: { color: DARK.text, fontWeight: '700', textDecorationLine: 'underline' },
 });

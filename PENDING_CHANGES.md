@@ -89,3 +89,26 @@ Install first: `npx expo install expo-haptics expo-notifications expo-device exp
 - [ ] Play Console Data safety form - do it AFTER Google Play payments/subscription are set up
       (add Financial info -> Purchase history, plus push notification token / device ID).
 
+
+## App Store readiness edits (Oct 2026) - NEEDS A NEW BUILD
+- Real app icon (brown sprout) replaces the Expo placeholder: assets/icon.png and android-icon-*.png. Old files kept in assets/_old-placeholders.
+- app.json: ios.supportsTablet false (no iPad screenshots needed); Android adaptive icon background #6B4226.
+- Onboarding: removed non-working "Continue with Apple/Google" buttons; terms line now links Terms of Service + Privacy Policy.
+- Profile > More: added Terms of Service row; Notifications opens iOS/Android settings; Help & Support opens an email to admin@rootedtogether.club.
+- Paywall: added Terms link next to Restore purchases and Privacy.
+- Public profile: web storefront shortcut hidden on iOS (Apple guideline 3.1.1).
+- Still to do: RevenueCat keys in src/billing.js (appl_ and goog_).
+
+## Test feedback fixes (22 Oct 2026) - NEEDS A NEW BUILD
+- Log in and Reset password screens restyled to the dark sign-up design (AuthShell / BrandHeader / PillInput in DarkUI.js); App.js shows them full-screen.
+- "Complete your profile": added a button at the bottom that returns to the profile.
+- Communities: Join buttons now line up across each row of cards.
+- Likes ("Helpful" on community posts, and post likes): sent to the server one at a time per post as an explicit on/off, duplicates ignored, real failures re-sync. Fixes the heart un-liking itself after a quick tap.
+- Website: /terms page exists in rooted-web but must be pushed to go live (was a 404).
+
+## One Premium for everyone (22 Oct 2026)
+- [ ] Seeker and creator paywalls merged into ONE "Unlock Premium" screen with one perk list (unlimited
+      conversations, join or lead a Spiritual Family, new Premium features as they launch). Removed perks that
+      are not built/gated yet (marketplace savings, "who's active", priority replies, selling courses,
+      communities). Add a perk back only once the feature exists. (PremiumUpsellScreen.js, ChatLockedScreen.js)
+      Apple setup: one subscription group, Premium Yearly + Premium Monthly, one `premium` entitlement.

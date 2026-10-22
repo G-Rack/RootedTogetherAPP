@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, BackHandler, Alert, Linking,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, BackHandler, Linking,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -179,10 +179,6 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
     return () => sub.remove();
   }, [index, submitting]);
 
-  function comingSoon(provider) {
-    Alert.alert('Coming soon', `${provider} sign-in is on its way. For now, create your account with your email below.`);
-  }
-
   async function finish() {
     setError(null);
     let dob = null;
@@ -240,21 +236,6 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
           </View>
           <Text style={styles.brand}>Rooted Together</Text>
           <Text style={styles.tagline}>A faith community that walks with you.</Text>
-        </View>
-
-        <TouchableOpacity style={styles.appleBtn} onPress={() => comingSoon('Apple')} activeOpacity={0.85}>
-          <Ionicons name="logo-apple" size={21} color={DARK.ink} />
-          <Text style={styles.appleText}>Continue with Apple</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.googleBtn} onPress={() => comingSoon('Google')} activeOpacity={0.85}>
-          <Ionicons name="logo-google" size={19} color={DARK.text} />
-          <Text style={styles.googleText}>Continue with Google</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or use your email</Text>
-          <View style={styles.dividerLine} />
         </View>
 
         <View style={styles.inputWrap}>
@@ -322,6 +303,8 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
 
         <Text style={styles.legal}>
           By continuing you agree to our{' '}
+          <Text style={styles.legalLink} onPress={() => Linking.openURL(`${WEB_BASE_URL}/terms`)}>Terms of Service</Text>
+          {' '}and{' '}
           <Text style={styles.legalLink} onPress={() => Linking.openURL(`${WEB_BASE_URL}/privacy`)}>Privacy Policy</Text>.
         </Text>
 

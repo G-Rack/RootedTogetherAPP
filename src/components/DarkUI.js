@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { serif } from '../theme';
 
@@ -117,7 +119,75 @@ export function ErrorNote({ message }) {
   );
 }
 
+// Full-screen dark page for sign in / password reset: same gradient, safe
+// areas and keyboard handling as the sign-up slides.
+export function AuthShell({ children }) {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={styles.shell}>
+      <Gradient />
+      <View style={[styles.shellContent, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.shellScroll} showsVerticalScrollIndicator={false}>
+          {children}
+        </KeyboardAwareScrollView>
+      </View>
+    </View>
+  );
+}
+
+// Logo, name and a line of text, as at the top of the sign-up screen.
+export function BrandHeader({ tagline }) {
+  return (
+    <View style={styles.brandWrap}>
+      <View style={styles.logo}>
+        <Ionicons name="leaf-outline" size={34} color={DARK.gold} />
+      </View>
+      <Text style={styles.brand}>Rooted Together</Text>
+      {tagline ? <Text style={styles.tagline}>{tagline}</Text> : null}
+    </View>
+  );
+}
+
+// Rounded dark input with a leading icon (and an eye toggle when secure).
+export function PillInput({ icon, secure, style, ...rest }) {
+  const [show, setShow] = React.useState(false);
+  return (
+    <View style={[styles.pillInput, style]}>
+      {icon ? <Ionicons name={icon} size={20} color={DARK.faint} /> : null}
+      <TextInput
+        style={styles.pillInner}
+        placeholderTextColor={DARK.faint}
+        keyboardAppearance="dark"
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry={secure && !show}
+        {...rest}
+      />
+      {secure ? (
+        <TouchableOpacity onPress={() => setShow((v) => !v)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={show ? 'Hide password' : 'Show password'}>
+          <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={21} color={DARK.faint} />
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  shell: { flex: 1, backgroundColor: '#2A1A10' },
+  shellContent: { flex: 1, paddingHorizontal: 24 },
+  shellScroll: { flexGrow: 1, paddingTop: 24, paddingBottom: 12 },
+  brandWrap: { alignItems: 'center', gap: 10, marginBottom: 30 },
+  logo: {
+    width: 68, height: 68, borderRadius: 34, borderWidth: 1.5, borderColor: 'rgba(251,246,239,0.35)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  brand: { fontFamily: serif, fontSize: 32, fontWeight: '700', color: DARK.text, marginTop: 6 },
+  tagline: { fontSize: 15, lineHeight: 22, color: DARK.soft, textAlign: 'center' },
+  pillInput: {
+    height: 54, borderRadius: 999, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: DARK.pill, borderWidth: 1, borderColor: DARK.pillBorder,
+  },
+  pillInner: { flex: 1, color: DARK.text, fontSize: 16, paddingVertical: 0 },
   topBar: { flexDirection: 'row', alignItems: 'center', height: 44, gap: 12 },
   topSide: { width: 44, height: 44, justifyContent: 'center' },
   segments: { flex: 1, flexDirection: 'row', gap: 6 },

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Image, TextInput, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { decode } from 'base64-arraybuffer';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -9,7 +9,7 @@ import CommunityPostCard from '../components/CommunityPostCard';
 import ImagePickerField from '../components/ImagePickerField';
 import {
   fetchCommunity, fetchCommunityPosts, joinCommunity, leaveCommunity,
-  fetchHelpfulMeta, toggleHelpful, fetchCommentCounts, fetchMyMembershipMap,
+  fetchHelpfulMeta, setHelpful, fetchCommentCounts, fetchMyMembershipMap,
   getCommunityImageUrl, updateCommunity,
 } from '../communitiesApi';
 
@@ -86,17 +86,30 @@ export default function CommunityDetailScreen({ communityId, session, onBack, on
     setRefreshing(false);
   }
 
-  async function handleToggleHelpful(postId) {
-    const current = helpfulMeta[postId] || { count: 0, helpfulByMe: false };
-    setHelpfulMeta((m) => ({
-      ...m,
-      [postId]: { count: current.count + (current.helpfulByMe ? -1 : 1), helpfulByMe: !current.helpfulByMe },
-    }));
-    try {
-      await toggleHelpful(postId, myAuthId, current.helpfulByMe);
-    } catch (e) {
-      setHelpfulMeta((m) => ({ ...m, [postId]: current }));
-    }
+  // Taps are applied to the heart instantly, but sent to the server one at a
+  // time per post and as an explicit on/off (not "flip"), so tapping fast or
+  // double-tapping can't make requests cross over and un-like the post. If a
+  // request really fails, the post is re-read from the server.
+  const helpfulRef = useRef({});
+  helpfulRef.current = helpfulMeta;
+  const helpfulQueue = useRef({});
+
+  function handleToggleHelpful(postId) {
+    const current = helpfulRef.current[postId] || { count: 0, helpfulByMe: false };
+    const want = !current.helpfulByMe;
+    const next = { count: Math.max(0, current.count + (want ? 1 : -1)), helpfulByMe: want };
+    helpfulRef.current = { ...helpfulRef.current, [postId]: next };
+    setHelpfulMeta(helpfulRef.current);
+    const prev = helpfulQueue.current[postId] || Promise.resolve();
+    helpfulQueue.current[postId] = prev
+      .then(() => setHelpful(postId, myAuthId, want))
+      .catch(async () => {
+        try {
+          const fresh = await fetchHelpfulMeta([postId], myAuthId);
+          helpfulRef.current = { ...helpfulRef.current, [postId]: fresh[postId] };
+          setHelpfulMeta(helpfulRef.current);
+        } catch (e) { /* leave as is */ }
+      });
   }
 
   // is_member isn't tracked by community_listing (a plain view, no

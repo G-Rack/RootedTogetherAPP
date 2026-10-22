@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
 import PostGridCell, { postGridRowStyle, gridBleedListStyle, gridHeaderPad } from '../components/PostGridCell';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
@@ -246,7 +246,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
         </TouchableOpacity>
         <Text style={styles.topBarTitle} numberOfLines={1}>{loading ? '' : (person?.name || 'Profile')}</Text>
         <View style={styles.topBarRight}>
-          {isFollowable && shopHandle ? (
+          {isFollowable && shopHandle && Platform.OS !== 'ios' ? (
             <TouchableOpacity
               onPress={() => Linking.openURL(`${WEB_BASE_URL}/creator/${shopHandle}`)}
               style={styles.backBtn}

@@ -64,6 +64,12 @@ export default function ProfileChecklistScreen({ checklist, onBack, onEdit, onPi
           </TouchableOpacity>
         ) : null}
       </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.primaryBtn} onPress={onBack} activeOpacity={0.85}>
+          <Text style={styles.primaryBtnText}>{checklist.complete ? 'Go to my profile' : 'Skip for now, go to my profile'}</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -76,7 +82,10 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, alignItems: 'flex-start' },
   topBarTitle: { flex: 1, textAlign: 'center', fontFamily: serif, fontSize: 18, color: colors.brown, fontWeight: '700' },
-  body: { paddingTop: 16, paddingBottom: 30 },
+  body: { paddingTop: 16, paddingBottom: 16 },
+  footer: { paddingTop: 10, paddingBottom: 14, borderTopWidth: 1, borderTopColor: 'rgba(107,66,38,0.1)', backgroundColor: colors.white },
+  primaryBtn: { height: 52, borderRadius: 999, backgroundColor: colors.brown, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnText: { color: colors.white, fontSize: 16, fontWeight: '700' },
   h1: { fontFamily: serif, fontSize: 25, lineHeight: 31, fontWeight: '700', color: colors.brown },
   sub: { fontSize: 14, lineHeight: 20, color: colors.textSoft, marginTop: 4, marginBottom: 12 },
   track: { height: 6, borderRadius: 6, backgroundColor: 'rgba(107,66,38,0.15)', overflow: 'hidden', marginBottom: 18 },

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
@@ -10,7 +10,7 @@ import {
   fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId,
 } from '../postsApi';
 import {
-  fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, toggleHelpful,
+  fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, setHelpful,
   fetchCommentCounts as fetchCommunityCommentCounts,
 } from '../communitiesApi';
 
@@ -146,17 +146,28 @@ export default function ExploreScreen({
     }
   }
 
-  async function handleToggleHelpful(postId) {
-    const current = communityHelpfulMeta[postId] || { count: 0, helpfulByMe: false };
-    setCommunityHelpfulMeta((m) => ({
-      ...m,
-      [postId]: { count: current.count + (current.helpfulByMe ? -1 : 1), helpfulByMe: !current.helpfulByMe },
-    }));
-    try {
-      await toggleHelpful(postId, myAuthId, current.helpfulByMe);
-    } catch (e) {
-      setCommunityHelpfulMeta((m) => ({ ...m, [postId]: current }));
-    }
+  // Heart updates instantly; server calls go one at a time per post as an
+  // explicit on/off, so fast taps can't cross over and un-like the post.
+  const helpfulRef = useRef({});
+  helpfulRef.current = communityHelpfulMeta;
+  const helpfulQueue = useRef({});
+
+  function handleToggleHelpful(postId) {
+    const current = helpfulRef.current[postId] || { count: 0, helpfulByMe: false };
+    const want = !current.helpfulByMe;
+    const next = { count: Math.max(0, current.count + (want ? 1 : -1)), helpfulByMe: want };
+    helpfulRef.current = { ...helpfulRef.current, [postId]: next };
+    setCommunityHelpfulMeta(helpfulRef.current);
+    const prev = helpfulQueue.current[postId] || Promise.resolve();
+    helpfulQueue.current[postId] = prev
+      .then(() => setHelpful(postId, myAuthId, want))
+      .catch(async () => {
+        try {
+          const fresh = await fetchHelpfulMeta([postId], myAuthId);
+          helpfulRef.current = { ...helpfulRef.current, [postId]: fresh[postId] };
+          setCommunityHelpfulMeta(helpfulRef.current);
+        } catch (e) { /* leave as is */ }
+      });
   }
 
   if (feed === null) {

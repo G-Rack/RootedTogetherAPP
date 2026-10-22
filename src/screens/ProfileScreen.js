@@ -29,10 +29,6 @@ import PayoutsReferralsScreen from './PayoutsReferralsScreen';
 // data pretending to be real yet.
 const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
 
-function notReady(label) {
-  Alert.alert(label, 'This is coming in a later part of the build.');
-}
-
 function SettingsRow({ label, onPress, last, danger, showDot }) {
   return (
     <TouchableOpacity style={[styles.settingsRow, !last && styles.settingsRowBorder]} onPress={onPress} activeOpacity={0.6}>
@@ -325,9 +321,10 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
         <Text style={styles.settingsSectionLabel}>More</Text>
         <View style={styles.settingsCard}>
           <SettingsRow label="Blocked users" onPress={() => setShowBlocked(true)} />
+          <SettingsRow label="Terms of Service" onPress={() => Linking.openURL(`${WEB_BASE_URL}/terms`)} />
           <SettingsRow label="Privacy Policy" onPress={() => Linking.openURL(`${WEB_BASE_URL}/privacy`)} />
-          <SettingsRow label="Notifications" onPress={() => notReady('Notifications')} />
-          <SettingsRow label="Help & Support" onPress={() => notReady('Help & Support')} last />
+          <SettingsRow label="Notifications" onPress={() => Linking.openSettings()} />
+          <SettingsRow label="Help & Support" onPress={() => Linking.openURL('mailto:admin@rootedtogether.club?subject=Rooted%20Together%20support')} last />
         </View>
 
         <View style={[styles.settingsCard, { marginTop: 22 }]}>

@@ -183,12 +183,29 @@ export async function fetchHelpfulMeta(postIds, myAuthId) {
   return meta;
 }
 
-export async function toggleHelpful(postId, myAuthId, currentlyHelpful) {
-  if (currentlyHelpful) {
-    await supabase.from('community_post_helpful').delete().eq('post_id', postId).eq('user_auth_id', myAuthId);
+// Sets "Helpful" to an explicit on/off state rather than flipping it, so a
+// repeated or out-of-order call can never leave it the wrong way round.
+// Marking it twice is not an error (ON CONFLICT DO NOTHING), and any real
+// failure is thrown so the screen can put the heart back to the truth.
+export async function setHelpful(postId, myAuthId, wantOn) {
+  if (wantOn) {
+    const { error } = await supabase
+      .from('community_post_helpful')
+      .upsert({ post_id: postId, user_auth_id: myAuthId }, { onConflict: 'post_id,user_auth_id', ignoreDuplicates: true });
+    if (error) throw error;
   } else {
-    await supabase.from('community_post_helpful').insert({ post_id: postId, user_auth_id: myAuthId });
+    const { error } = await supabase
+      .from('community_post_helpful')
+      .delete()
+      .eq('post_id', postId)
+      .eq('user_auth_id', myAuthId);
+    if (error) throw error;
   }
+}
+
+// Older call style (used by Explore): flip from the state you pass in.
+export async function toggleHelpful(postId, myAuthId, currentlyHelpful) {
+  return setHelpful(postId, myAuthId, !currentlyHelpful);
 }
 
 export async function fetchCommunityPostComments(postId) {
