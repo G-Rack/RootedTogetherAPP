@@ -27,7 +27,7 @@ const FAMILY_REQUESTER_ROLES = ['seeker', 'assistant'];
 // Girik's instruction, this is Leaders, Mothers, and Pastors only. Seekers
 // and Assistants keep the older About/Details/Support-Focus layout below,
 // unchanged.
-const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
+const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church', 'seeker', 'assistant'];
 // Every followable role can post (matches the posts table's insert policy), so
 // their public profile shows their posts and post count.
 const POSTING_ROLES = FOLLOWABLE_ROLES;

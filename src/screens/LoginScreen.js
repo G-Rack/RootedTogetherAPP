@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { supabase } from '../supabaseClient';
 import {
-  AuthShell, BrandHeader, PillInput, PrimaryButton, ErrorNote, DARK,
+  AuthShell, BrandHeader, PillInput, PrimaryButton, ErrorNote, SocialButtons, DARK,
 } from '../components/DarkUI';
+import { signInWithApple, signInWithGoogle } from '../socialAuth';
 
 // For returning users who already created an account during sign-up.
 // Same dark look as the sign-up screens.
@@ -12,6 +13,17 @@ export default function LoginScreen({ onBack, onLoggedIn, onForgotPassword }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [socialBusy, setSocialBusy] = useState(false);
+
+  async function handleSocial(which) {
+    if (socialBusy || submitting) return;
+    setError(null);
+    setSocialBusy(true);
+    const res = which === 'apple' ? await signInWithApple() : await signInWithGoogle();
+    setSocialBusy(false);
+    if (res.error) setError(res.error);
+    else if (res.ok) onLoggedIn?.();
+  }
 
   async function handleLogin() {
     setError(null);
@@ -36,6 +48,12 @@ export default function LoginScreen({ onBack, onLoggedIn, onForgotPassword }) {
   return (
     <AuthShell>
       <BrandHeader tagline="Welcome back. Log in to pick up where you left off." />
+
+      <SocialButtons
+        busy={socialBusy || submitting}
+        onApple={() => handleSocial('apple')}
+        onGoogle={() => handleSocial('google')}
+      />
 
       <PillInput
         icon="mail-outline"

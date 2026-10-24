@@ -7,13 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from '../components/KeyboardAwareScrollView';
 import SelectModal from '../components/SelectModal';
 import {
-  Gradient, TopBar, Heading, PrimaryButton, ErrorNote, DARK,
+  Gradient, TopBar, Heading, PrimaryButton, ErrorNote, SocialButtons, DARK,
 } from '../components/DarkUI';
 import { serif } from '../theme';
 import { softHaptic } from '../haptics';
 import { SUPPORT_OPTIONS } from '../flows';
 import { WEB_BASE_URL } from '../config';
 import { getPendingCode, subscribeToReferral } from '../referral';
+import { signInWithApple, signInWithGoogle } from '../socialAuth';
 
 // The new, short sign-up: an account screen, then a few tap-to-answer slides.
 // Everything the old long form asked that isn't collected here lives in the
@@ -69,9 +70,12 @@ const STEP_TAILS = {
   church: ['goals', 'about'],
 };
 
-function stepsFor(role) {
-  if (!role) return ['account', 'role'];
-  return ['account', 'role', ...STEP_TAILS[role]];
+// `social` = the person already signed in with Apple or Google, so there is no
+// email/password step; the slides start at "How will you use Rooted Together?".
+function stepsFor(role, social) {
+  const head = social ? ['role'] : ['account', 'role'];
+  if (!role) return head;
+  return [...head, ...STEP_TAILS[role]];
 }
 
 function buildDob(day, month, year) {
@@ -116,14 +120,14 @@ function buildFields(role, data, dob) {
   return fields;
 }
 
-export default function OnboardingScreen({ onSubmit, onLogin }) {
+export default function OnboardingScreen({ onSubmit, onLogin, social, onCancelSocial }) {
   const insets = useSafeAreaInsets();
   const [data, setData] = useState({
-    email: '', password: '', referral: getPendingCode() || '', role: null,
+    email: social?.email || '', password: '', referral: getPendingCode() || '', role: null,
     needs: [], focus: [], goals: [],
     forWho: 'Myself', faith: null,
-    name: '', day: '', month: '', year: '',
-    orgName: '', contactName: '',
+    name: social?.name || '', day: '', month: '', year: '',
+    orgName: '', contactName: social?.name || '',
   });
   const [showPw, setShowPw] = useState(false);
   const [showRef, setShowRef] = useState(false);
@@ -131,6 +135,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [monthOpen, setMonthOpen] = useState(false);
+  const [socialBusy, setSocialBusy] = useState(false);
   const mounted = useRef(true);
   const advancing = useRef(false);
 
@@ -141,10 +146,12 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
     setData((d) => (d.referral ? d : { ...d, referral: code }));
   }), []);
 
-  const steps = stepsFor(data.role);
+  const steps = stepsFor(data.role, social);
   const stepKey = steps[Math.min(index, steps.length - 1)];
-  const barTotal = steps.length - 1; // the account step has no bar
-  const barStep = Math.max(0, index);
+  // The account step has no progress bar; with Apple/Google there is no account
+  // step, so the first slide is the first segment.
+  const barTotal = social ? steps.length : steps.length - 1;
+  const barStep = social ? index + 1 : Math.max(0, index);
 
   function set(key, value) {
     setData((d) => ({ ...d, [key]: value }));
@@ -164,8 +171,23 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
     }, 200);
   }
 
+  // Multi-select slides: tapping toggles an answer on/off and stays on the
+  // slide; the Next button moves on.
+  function toggle(listKey, value) {
+    softHaptic();
+    setError(null);
+    setData((d) => {
+      const list = d[listKey];
+      return { ...d, [listKey]: list.includes(value) ? list.filter((x) => x !== value) : [...list, value] };
+    });
+  }
+
   function goBack() {
-    if (index <= 0) return false;
+    if (index <= 0) {
+      // First slide after Apple/Google sign-in: back means "use a different account".
+      if (social && onCancelSocial) { onCancelSocial(); return true; }
+      return false;
+    }
     setError(null);
     setIndex((i) => i - 1);
     return true;
@@ -197,7 +219,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
     if (!res.ok) {
       setError(res.error || 'Something went wrong. Please try again.');
       // A problem with the email or password lives on the first slide.
-      if (/already has an account|valid email|password/i.test(res.error || '')) setIndex(0);
+      if (!social && /already has an account|valid email|password/i.test(res.error || '')) setIndex(0);
     }
     return undefined;
   }
@@ -214,7 +236,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
     }
     if (stepKey === 'role') {
       if (!data.role) return setError('Please pick the option that fits you best.');
-      return setIndex(2);
+      return setIndex((i) => i + 1);
     }
     if (stepKey === 'about') return finish();
     return setIndex((i) => i + 1);
@@ -223,6 +245,17 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
   function skip() {
     setError(null);
     setIndex((i) => i + 1);
+  }
+
+  async function handleSocial(which) {
+    if (socialBusy) return;
+    setError(null);
+    setSocialBusy(true);
+    const res = which === 'apple' ? await signInWithApple() : await signInWithGoogle();
+    if (mounted.current) setSocialBusy(false);
+    // On success the session changes and App.js takes over (a returning member
+    // goes straight in; a new one sees the slides without the account step).
+    if (res.error && mounted.current) setError(res.error);
   }
 
   // ---------- slide bodies ----------
@@ -237,6 +270,12 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
           <Text style={styles.brand}>Rooted Together</Text>
           <Text style={styles.tagline}>A faith community that walks with you.</Text>
         </View>
+
+        <SocialButtons
+          busy={socialBusy}
+          onApple={() => handleSocial('apple')}
+          onGoogle={() => handleSocial('google')}
+        />
 
         <View style={styles.inputWrap}>
           <Ionicons name="mail-outline" size={20} color={DARK.faint} />
@@ -357,7 +396,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
               <TouchableOpacity
                 key={opt}
                 style={[styles.cell, on && styles.optionOn]}
-                onPress={() => pick(() => set(listKey, [opt]))}
+                onPress={() => toggle(listKey, opt)}
                 activeOpacity={0.8}
               >
                 <Ionicons name={OPTION_ICONS[opt]} size={22} color={DARK.gold} />
@@ -367,6 +406,8 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
             );
           })}
         </View>
+        <View style={{ flex: 1, minHeight: 24 }} />
+        <PrimaryButton label="Next" onPress={next} />
       </>
     );
   }
@@ -376,7 +417,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
     const canStartFamily = data.role === 'mother' || data.role === 'priest';
     return (
       <>
-        <Heading title="What would you like to do first?" sub="Pick your main goal. You can add more later in your profile." />
+        <Heading title="What would you like to do first?" sub="Pick all that apply. You can change these later in your profile." />
         <View style={{ gap: 10 }}>
           {options.map((g) => {
             const on = data.goals.includes(g.key);
@@ -384,7 +425,7 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
               <TouchableOpacity
                 key={g.key}
                 style={[styles.goalRow, on && styles.optionOn]}
-                onPress={() => pick(() => set('goals', [g.key]))}
+                onPress={() => toggle('goals', g.key)}
                 activeOpacity={0.8}
               >
                 <Ionicons name={g.icon} size={24} color={DARK.gold} />
@@ -400,6 +441,8 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
             Creator accounts are free. Premium is only needed to message people{canStartFamily ? ' or start a family' : ''}.
           </Text>
         </View>
+        <View style={{ flex: 1, minHeight: 24 }} />
+        <PrimaryButton label="Next" onPress={next} />
       </>
     );
   }
@@ -575,10 +618,10 @@ export default function OnboardingScreen({ onSubmit, onLogin }) {
   else if (stepKey === 'role') body = renderRole();
   else if (stepKey === 'needs') {
     skippable = true;
-    body = renderOptionGrid('needs', 'What are you walking through?', "Pick the one that matters most right now. You can add more later in your profile.");
+    body = renderOptionGrid('needs', 'What are you walking through?', "Pick all that apply. You can add more later in your profile.");
   } else if (stepKey === 'focus') {
     skippable = true;
-    body = renderOptionGrid('focus', 'Where would you like to serve?', "Pick the one you feel most called to. You can add more later in your profile.");
+    body = renderOptionGrid('focus', 'Where would you like to serve?', "Pick all that apply. You can add more later in your profile.");
   } else if (stepKey === 'goals') {
     skippable = true;
     body = renderGoals();

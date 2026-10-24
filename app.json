@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "club.rootedtogether.app",
+      "usesAppleSignIn": true,
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -40,6 +41,8 @@
       "policy": "fingerprint"
     },
     "plugins": [
+      "expo-apple-authentication",
+      "expo-web-browser",
       [
         "expo-notifications",
         {

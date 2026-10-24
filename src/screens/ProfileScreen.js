@@ -27,7 +27,11 @@ import PayoutsReferralsScreen from './PayoutsReferralsScreen';
 // the new Dedication Scorecard — a placeholder that will grow into a real
 // consistency tracker (prayer, check-ins, growth) over time, not invented
 // data pretending to be real yet.
-const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church'];
+// Every role now gets the same Instagram-style profile: post grid, New Post,
+// Communities tab with Create Community. (Seekers and Assistants used to get
+// a plainer About/Details layout.) Only the leader roles see Payouts below.
+const FOLLOWABLE_ROLES = ['influencer', 'mother', 'pastor', 'church', 'seeker', 'assistant'];
+const LEADER_TOOL_ROLES = ['influencer', 'mother', 'pastor', 'church'];
 
 function SettingsRow({ label, onPress, last, danger, showDot }) {
   return (
@@ -309,7 +313,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           <SettingsRow label="Change Password" onPress={() => setShowChangePassword(true)} last />
         </View>
 
-        {isFollowable && (
+        {person && LEADER_TOOL_ROLES.includes(person.role) && (
           <>
             <Text style={styles.settingsSectionLabel}>Leader Tools</Text>
             <View style={styles.settingsCard}>

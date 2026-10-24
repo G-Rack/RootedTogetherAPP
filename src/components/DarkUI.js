@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import KeyboardAwareScrollView from './KeyboardAwareScrollView';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -110,6 +110,30 @@ export function PrimaryButton({ label, onPress, busy, disabled, variant }) {
   );
 }
 
+// "Continue with Apple" (iPhone only) and "Continue with Google", then an "or"
+// divider. Shared by the sign-up and log-in screens.
+export function SocialButtons({ onApple, onGoogle, busy }) {
+  return (
+    <View>
+      {Platform.OS === 'ios' ? (
+        <TouchableOpacity style={[styles.appleBtn, busy && { opacity: 0.55 }]} onPress={onApple} disabled={busy} activeOpacity={0.85} accessibilityLabel="Continue with Apple">
+          <Ionicons name="logo-apple" size={21} color={DARK.ink} />
+          <Text style={styles.appleText}>Continue with Apple</Text>
+        </TouchableOpacity>
+      ) : null}
+      <TouchableOpacity style={[styles.googleBtn, busy && { opacity: 0.55 }]} onPress={onGoogle} disabled={busy} activeOpacity={0.85} accessibilityLabel="Continue with Google">
+        <Ionicons name="logo-google" size={19} color={DARK.text} />
+        <Text style={styles.googleText}>Continue with Google</Text>
+      </TouchableOpacity>
+      <View style={styles.orRow}>
+        <View style={styles.orLine} />
+        <Text style={styles.orText}>or</Text>
+        <View style={styles.orLine} />
+      </View>
+    </View>
+  );
+}
+
 export function ErrorNote({ message }) {
   if (!message) return null;
   return (
@@ -207,4 +231,18 @@ const styles = StyleSheet.create({
     borderRadius: 12, padding: 12, marginBottom: 14,
   },
   errorText: { color: DARK.error, fontSize: 13.5, lineHeight: 19 },
+
+  appleBtn: {
+    height: 54, borderRadius: 999, backgroundColor: DARK.text, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 10,
+  },
+  appleText: { color: DARK.ink, fontSize: 16, fontWeight: '600' },
+  googleBtn: {
+    height: 54, borderRadius: 999, backgroundColor: DARK.pill, borderWidth: 1, borderColor: 'rgba(251,246,239,0.28)',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+  },
+  googleText: { color: DARK.text, fontSize: 16, fontWeight: '600' },
+  orRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginVertical: 18 },
+  orLine: { flex: 1, height: 1, backgroundColor: 'rgba(251,246,239,0.2)' },
+  orText: { color: DARK.faint, fontSize: 13 },
 });

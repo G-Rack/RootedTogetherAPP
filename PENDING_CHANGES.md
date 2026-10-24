@@ -112,3 +112,16 @@ Install first: `npx expo install expo-haptics expo-notifications expo-device exp
       are not built/gated yet (marketplace savings, "who's active", priority replies, selling courses,
       communities). Add a perk back only once the feature exists. (PremiumUpsellScreen.js, ChatLockedScreen.js)
       Apple setup: one subscription group, Premium Yearly + Premium Monthly, one `premium` entitlement.
+
+## Sign-up/profile round (24 Oct 2026)
+- [ ] Sign-up slides "What are you walking through?", "Where would you like to serve?" and "What would you like to do
+      first?" are now multi-select with a Next button (Skip still works). (OnboardingScreen.js)
+- [ ] Seekers and Assistants now get the same profile as leaders: post grid, New Post, Communities tab with Create
+      Community, followers; their public profile matches. Payouts stays leader-only. Dead Dedication Scorecard
+      branch in ProfileScreen is no longer reachable. NEEDS the database migration
+      `let_seekers_and_assistants_post_and_create_communities` (posts, communities, post-images storage policies).
+      (ProfileScreen.js, PublicProfileScreen.js, CommunitiesScreen.js, postsApi.js)
+- [ ] Continue with Apple (iPhone) / Continue with Google on sign-up and log-in. NEEDS: `npx expo install
+      expo-apple-authentication expo-web-browser expo-crypto`, a new build, the `complete-social-signup` edge function,
+      and Apple/Google/Supabase provider setup. (socialAuth.js, DarkUI.js, OnboardingScreen.js, LoginScreen.js,
+      App.js, config.js, app.json)

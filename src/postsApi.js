@@ -258,8 +258,10 @@ export async function fetchCreatorHandle(authUserId) {
 // CreatePostScreen's handlePost) use this id as that folder name.
 export async function getMyLeaderRow(myAuthId) {
   const person = await fetchMyDirectoryPerson(myAuthId);
-  if (!person || !['influencer', 'mother', 'pastor', 'church'].includes(person.role)) return null;
-  return { id: person.auth_user_id, vetting_status: person.vetting_status };
+  if (!person) return null;
+  // Seekers and Assistants have no vetting step, so they count as Approved.
+  const noVetting = person.role === 'seeker' || person.role === 'assistant';
+  return { id: person.auth_user_id, vetting_status: noVetting ? 'Approved' : person.vetting_status };
 }
 
 // Replaces the signed-in person's own profile photo — the Profile screen's

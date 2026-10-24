@@ -9,6 +9,8 @@
 export const SUPABASE_URL = 'https://ethrhogtyebqndeyytqd.supabase.co';
 export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0aHJob2d0eWVicW5kZXl5dHFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0MjE1MTIsImV4cCI6MjEwMzk5NzUxMn0.5VYHM6swun4gNrsqg7FwLS0dyG44bQtV2EteUt7Y1Bc';
 export const SUBMIT_ENDPOINT = `${SUPABASE_URL}/functions/v1/submit-signup`;
+// Finishes a first-time Apple/Google sign-in (creates their profile row).
+export const COMPLETE_SOCIAL_SIGNUP_ENDPOINT = `${SUPABASE_URL}/functions/v1/complete-social-signup`;
 
 // Lets a signed-in person replace their own profile photo after sign-up —
 // profile-pictures is a private bucket with no client-facing upload

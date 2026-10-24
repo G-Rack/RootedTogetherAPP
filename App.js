@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView as SafeAreaInsetView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { colors, serif } from './src/theme';
-import { SUBMIT_ENDPOINT, SUPABASE_ANON_KEY } from './src/config';
+import { SUBMIT_ENDPOINT, COMPLETE_SOCIAL_SIGNUP_ENDPOINT, SUPABASE_ANON_KEY } from './src/config';
 import { supabase } from './src/supabaseClient';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import WelcomeScreen from './src/screens/WelcomeScreen';
@@ -26,6 +26,9 @@ export default function App() {
   const [welcome, setWelcome] = useState(false);
   // 'checklist' = open the Profile checklist as soon as the app opens.
   const [profileIntent, setProfileIntent] = useState(null);
+  // Signed in (Apple/Google) but no Rooted Together profile yet: true = show the
+  // short sign-up questions, false = go to the app, null = still checking.
+  const [needsProfile, setNeedsProfile] = useState(null);
 
   // Accounts foundation: check for an existing session once on launch, and
   // keep listening afterwards — this is what picks up both a fresh login
@@ -42,6 +45,57 @@ export default function App() {
     });
     return () => subscription?.subscription?.unsubscribe();
   }, []);
+
+  // Once someone is signed in, check they actually have a profile. Email
+  // sign-ups always do; a first-time Apple/Google sign-in does not until they
+  // answer the sign-up questions.
+  const sessionUserId = session?.user?.id;
+  useEffect(() => {
+    if (!sessionUserId) { setNeedsProfile(null); return undefined; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('directory_listing').select('id').eq('auth_user_id', sessionUserId).limit(1);
+      if (cancelled) return;
+      // If the check itself fails (offline), let them into the app rather than
+      // trapping a real member in sign-up.
+      setNeedsProfile(error ? false : !(data && data.length));
+    })();
+    return () => { cancelled = true; };
+  }, [sessionUserId]);
+
+  // Same questions as sign-up, for someone already signed in with Apple or
+  // Google. The server reads who they are from their session, so no password.
+  async function submitSocialSignup(role, rawFields) {
+    const fields = { ...rawFields };
+    delete fields.Password;
+    const referredByCode = fields['Referral Code'];
+    delete fields['Referral Code'];
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) return { ok: false, error: 'Your sign-in expired. Please sign in again.' };
+      const res = await fetch(COMPLETE_SOCIAL_SIGNUP_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ role, fields, source: 'app', referredByCode }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return { ok: false, error: data.error || 'Something went wrong saving your sign-up.' };
+      }
+      clearPendingCode();
+      setWelcome(true);
+      setNeedsProfile(false);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message || 'Something went wrong. Please try again.' };
+    }
+  }
 
   // Called by the sign-up slides with the role and the answers (field names
   // match the submit-signup Edge Function's FIELD_MAP). Resolves to
@@ -130,6 +184,32 @@ export default function App() {
             setProfileIntent('checklist');
             setWelcome(false);
           }}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
+  // Signed in with Apple/Google for the first time: the slides, minus the
+  // email/password step. Back on the first slide signs them out.
+  if (session && needsProfile === null) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <View style={styles.splash}>
+          <Text style={styles.splashText}>Loading…</Text>
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+  if (session && needsProfile) {
+    const meta = session.user?.user_metadata || {};
+    return (
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <OnboardingScreen
+          social={{ email: session.user?.email || '', name: meta.full_name || meta.name || '' }}
+          onSubmit={submitSocialSignup}
+          onCancelSocial={handleLogOut}
         />
       </SafeAreaProvider>
     );
