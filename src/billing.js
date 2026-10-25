@@ -4,6 +4,8 @@
 // billing, so Stripe can't be used here.
 //
 // Setup still needed (outside the code):
+//   (Done 25 Oct 2026: Play + App Store products, RevenueCat project and both
+//   keys below are set up. Notes kept for reference.)
 //   1. Play Console → Monetize → Subscriptions: create one subscription,
 //      e.g. id `premium`, with two base plans: yearly $49 and monthly $5.99.
 //   2. RevenueCat: create a project, connect the Play app (service account
@@ -12,11 +14,12 @@
 //   3. Paste RevenueCat's public SDK keys below.
 //
 // Until a key is filled in, isBillingConfigured() is false and the paywall
-// falls back to the old free "upgrade" so testing keeps working.
+// falls back to the old free "upgrade" in development builds only (__DEV__);
+// release builds refuse the upgrade instead.
 import { Platform } from 'react-native';
 
-export const REVENUECAT_ANDROID_KEY = ''; // starts with "goog_"
-export const REVENUECAT_IOS_KEY = ''; // starts with "appl_"
+export const REVENUECAT_ANDROID_KEY = 'goog_cLChVzBPXyGdQGqLMLLecjxPgtR'; // starts with "goog_"
+export const REVENUECAT_IOS_KEY = 'appl_JoPNdGaZkvdWpwvfScHJaSkIrml'; // starts with "appl_"
 export const ENTITLEMENT_ID = 'premium';
 
 // Shown until the store's real, localized prices load (and if they can't).

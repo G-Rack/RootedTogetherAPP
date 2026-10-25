@@ -1,9 +1,11 @@
 // All the Explore-feed data access in one place, shared by ExploreScreen
 // and PublicProfileScreen (a Spiritual Leader's posts show up in both) so
 // the fetch/like/comment logic only exists once.
+import { Platform } from 'react-native';
 import { supabase } from './supabaseClient';
 import { notifyPush } from './notifications';
-import { UPDATE_PROFILE_PICTURE_ENDPOINT, DELETE_ACCOUNT_ENDPOINT } from './config';
+import { UPDATE_PROFILE_PICTURE_ENDPOINT, DELETE_ACCOUNT_ENDPOINT, REVOKE_APPLE_TOKEN_ENDPOINT } from './config';
+import { getAppleAuthorizationCode } from './socialAuth';
 import { hideBlocked } from './moderationApi';
 
 // Fetches the feed, or one author's posts when authorId (their AUTH user
@@ -303,6 +305,25 @@ export async function updateMyProfilePicture(session, role, image) {
 // membership, etc.) is governed by each table's existing foreign-key
 // behavior — see delete-account's own comments for the full picture.
 export async function deleteMyAccount(session) {
+  // People who signed in with Apple: Apple requires their Sign in with Apple
+  // link to be revoked as part of deletion (guideline 5.1.1(v)). Re-confirming
+  // with Apple gives a one-time code that revoke-apple-token trades in. Backing
+  // out of the Apple sheet stops the deletion; a server-side hiccup does not,
+  // so deletion is never blocked by it.
+  const providers = session?.user?.app_metadata?.providers || [];
+  if (providers.includes('apple') && Platform.OS === 'ios') {
+    const authorizationCode = await getAppleAuthorizationCode();
+    try {
+      await fetch(REVOKE_APPLE_TOKEN_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ authorizationCode }),
+      });
+    } catch (e) { /* best effort */ }
+  }
   const res = await fetch(DELETE_ACCOUNT_ENDPOINT, {
     method: 'POST',
     headers: {

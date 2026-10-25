@@ -125,3 +125,9 @@ Install first: `npx expo install expo-haptics expo-notifications expo-device exp
       expo-apple-authentication expo-web-browser expo-crypto`, a new build, the `complete-social-signup` edge function,
       and Apple/Google/Supabase provider setup. (socialAuth.js, DarkUI.js, OnboardingScreen.js, LoginScreen.js,
       App.js, config.js, app.json)
+
+## Review-readiness round (24 Oct 2026)
+- Removed the "Coming Soon" Dedication Scorecard card (classic profile layout) and the "Request a 1:1 Call" card on Mother/Pastor family pages, so no placeholder content is reachable.
+- Delete Account for Apple sign-in users now re-confirms with Apple and calls the new `revoke-apple-token` edge function to revoke the Sign in with Apple link (guideline 5.1.1(v)). Needs the function deployed plus secrets APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY (and optionally APPLE_CLIENT_ID).
+- RevenueCat set up (25 Oct 2026): iOS `appl_` and Android `goog_` public keys in src/billing.js; entitlement `premium`; offering `default` with Annual + Monthly packages (App Store club.rootedtogether.premium.* and Play premium:yearly / premium:monthly).
+- The free "upgrade" fallback on the paywall is now development-only (__DEV__); release builds show an error instead of granting Premium.

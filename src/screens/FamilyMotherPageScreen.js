@@ -420,16 +420,6 @@ export default function FamilyMotherPageScreen({ session, family, isLeader, lead
             )}
           </View>
 
-          {!isLeader && (
-            <View style={styles.callCard}>
-              <Ionicons name="call-outline" size={22} color={colors.brown} />
-              <Text style={styles.callTitle}>Need a 1:1 moment?</Text>
-              <Text style={styles.callBody}>Book a private call with {leaderName || 'her'}, from a call package.</Text>
-              <TouchableOpacity style={styles.callBtn} onPress={onOpenCallPackages} activeOpacity={0.85}>
-                <Text style={styles.callBtnText}>Request a 1:1 Call</Text>
-              </TouchableOpacity>
-            </View>
-          )}
         </ScrollView>
       )}
     </View>

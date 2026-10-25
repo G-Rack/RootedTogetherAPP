@@ -74,6 +74,23 @@ export async function signInWithApple() {
   }
 }
 
+// Account deletion: Apple requires revoking the Sign in with Apple link when
+// someone deletes their account. That needs a fresh one-time code from Apple,
+// so this re-shows the Apple sheet (no extra permissions asked). Resolves to
+// the code string, or throws an Error with a friendly message.
+export async function getAppleAuthorizationCode() {
+  try {
+    const credential = await AppleAuthentication.signInAsync({ requestedScopes: [] });
+    if (!credential.authorizationCode) throw new Error('Apple didn’t return a confirmation. Please try again.');
+    return credential.authorizationCode;
+  } catch (e) {
+    if (e && e.code === 'ERR_REQUEST_CANCELED') {
+      throw new Error('To finish deleting your account, please confirm with Apple when asked.');
+    }
+    throw e;
+  }
+}
+
 function paramsFromUrl(url) {
   const out = {};
   const raw = (url.split('#')[1] || url.split('?')[1] || '');

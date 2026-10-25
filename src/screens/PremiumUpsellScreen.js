@@ -24,8 +24,8 @@ import {
 // through Google Play / Apple via RevenueCat (see billing.js). After a
 // successful purchase, onUpgrade() runs exactly as before — it marks the
 // person Premium and continues whatever they were doing. Until RevenueCat
-// keys are filled in, the button falls back to that free upgrade so
-// testing isn't blocked.
+// keys are filled in, the button falls back to that free upgrade, but only
+// in development builds (__DEV__); release builds refuse instead.
 // One membership, one perk list, for everyone (Seekers, Assistants, Leaders,
 // Mothers, Pastors, Churches). Only list what Premium really unlocks today:
 // starting/replying to conversations and joining or leading a Spiritual Family.
@@ -82,6 +82,13 @@ export default function PremiumUpsellScreen({ onUpgrade, targetName, context = '
     setError(null);
     setNotice(null);
     try {
+      // Store builds always have billing keys. Without them (only possible in
+      // development) the free upgrade is allowed for testing; in a release
+      // build it must never hand out Premium without a real purchase.
+      if (!billing && !__DEV__) {
+        setError('Purchases aren’t available right now. Please try again later.');
+        return;
+      }
       if (billing) {
         const pkg = packages[plan];
         if (!pkg) {

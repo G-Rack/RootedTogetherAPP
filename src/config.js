@@ -24,6 +24,7 @@ export const UPDATE_PROFILE_PICTURE_ENDPOINT = `${SUPABASE_URL}/functions/v1/upd
 // through an Edge Function rather than anything the client could do
 // directly.
 export const DELETE_ACCOUNT_ENDPOINT = `${SUPABASE_URL}/functions/v1/delete-account`;
+export const REVOKE_APPLE_TOKEN_ENDPOINT = `${SUPABASE_URL}/functions/v1/revoke-apple-token`;
 
 // The companion website — a creator's storefront (their web shop) lives at
 // WEB_BASE_URL/creator/<handle>, matching rooted-web's app/creator/[handle]

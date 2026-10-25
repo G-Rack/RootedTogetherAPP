@@ -617,36 +617,6 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
         renderItem={null}
         ListHeaderComponent={
           <View style={styles.shadedSection}>
-            <View style={styles.scorecardCard}>
-              <View style={styles.scorecardTopRow}>
-                <View style={styles.scorecardTitleRow}>
-                  <Ionicons name="shield-checkmark-outline" size={22} color={colors.brown} />
-                  <Text style={styles.scorecardTitle}>Dedication Scorecard</Text>
-                </View>
-                <View style={styles.comingSoonTag}>
-                  <Text style={styles.comingSoonTagText}>COMING SOON</Text>
-                </View>
-              </View>
-              <Text style={styles.scorecardBody}>
-                Track your consistency in prayer, mentorship check-ins, and spiritual growth over time —
-                this will grow with you as you build your journey here.
-              </Text>
-              <View style={styles.scorecardStatsRow}>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardStatValue}>—</Text>
-                  <Text style={styles.scorecardStatLabel}>Streak</Text>
-                </View>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardStatValue}>—</Text>
-                  <Text style={styles.scorecardStatLabel}>Check-ins</Text>
-                </View>
-                <View style={styles.scorecardStat}>
-                  <Text style={styles.scorecardStatValue}>{growthScore == null ? '—' : formatCount(growthScore)}</Text>
-                  <Text style={styles.scorecardStatLabel}>Growth</Text>
-                </View>
-              </View>
-            </View>
-
             {person.story ? (
               <>
                 <Text style={styles.sectionLabel}>About</Text>
