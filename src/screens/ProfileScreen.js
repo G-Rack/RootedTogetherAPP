@@ -12,6 +12,7 @@ import {
 } from '../postsApi';
 import { fetchMyCommunities, getGrowthScore } from '../communitiesApi';
 import { WEB_BASE_URL } from '../config';
+import { openInApp } from '../openInApp';
 import BlockedUsersScreen from './BlockedUsersScreen';
 import { fetchMyFullProfileRow } from '../profileEditing';
 import { buildChecklist } from '../profileChecklist';
@@ -225,13 +226,14 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
   );
 
   // Top-left on every version of someone's own Profile page — deep-links to
-  // the companion website's home page (rootedtogether.club), where the
+  // the companion website's home page (rootedtogether.club), opened inside
+  // the app in an in-app browser sheet, where the
   // marketplace lives, rather than any one person's own storefront, so
   // it's shown to everyone regardless of role rather than gated behind
   // having published a storefront handle.
   const marketplaceButton = (
     <TouchableOpacity
-      onPress={() => Linking.openURL(WEB_BASE_URL)}
+      onPress={() => openInApp(WEB_BASE_URL)}
       style={styles.shopBtn}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >

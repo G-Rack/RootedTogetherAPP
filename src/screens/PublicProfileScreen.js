@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native';
+import { View, Text, Image, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import PostGridCell, { postGridRowStyle, gridBleedListStyle, gridHeaderPad } from '../components/PostGridCell';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
@@ -15,6 +15,7 @@ import {
 import { fetchFamilyByLeader, fetchMyMembership, requestToJoinFamily, withdrawRequest } from '../familyApi';
 import { fetchMyCommunities } from '../communitiesApi';
 import { WEB_BASE_URL } from '../config';
+import { openInApp } from '../openInApp';
 
 // Only Seekers/Assistants can request to join a family, and only Mothers/
 // Pastors lead one — matches Spiritual Family's formation rules exactly.
@@ -248,7 +249,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
         <View style={styles.topBarRight}>
           {isFollowable && shopHandle && Platform.OS !== 'ios' ? (
             <TouchableOpacity
-              onPress={() => Linking.openURL(`${WEB_BASE_URL}/creator/${shopHandle}`)}
+              onPress={() => openInApp(`${WEB_BASE_URL}/creator/${shopHandle}`)}
               style={styles.backBtn}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
