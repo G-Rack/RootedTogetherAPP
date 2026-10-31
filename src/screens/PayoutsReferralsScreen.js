@@ -42,10 +42,11 @@ function shortDate(iso) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// What the creator keeps from one sale: the price minus our fee and the card fee.
+// What the creator keeps from one sale: the price minus our 10% platform fee.
+// Stripe's card fee is paid by Rooted Together out of that 10%, not by the creator.
 function netOf(row, amountKey) {
   const gross = Number(row[amountKey]) || 0;
-  const net = gross - (Number(row.platform_fee_cents) || 0) - (Number(row.stripe_fee_cents) || 0);
+  const net = gross - (Number(row.platform_fee_cents) || 0);
   return Math.max(0, net);
 }
 
@@ -329,8 +330,8 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
 
             <Text style={styles.balanceNote}>
               {connected
-                ? (balanceError || 'Earnings are after platform and card fees. Referral cuts are tracked separately below.')
-                : 'Earnings are after platform and card fees. Finish Stripe setup on the website to get paid out.'}
+                ? (balanceError || 'Earnings are after the 10% platform fee. Referral cuts are tracked separately below.')
+                : 'Earnings are after the 10% platform fee. Finish Stripe setup on the website to get paid out.'}
             </Text>
 
             <TouchableOpacity
