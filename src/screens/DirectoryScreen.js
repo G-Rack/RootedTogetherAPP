@@ -4,6 +4,8 @@ import { colors, serif } from '../theme';
 import { supabase } from '../supabaseClient';
 import { ROLE_LABELS, initialsFor } from '../roleLabels';
 import { fetchBlockedIdSet, withoutBlocked } from '../moderationApi';
+import { fetchProIds } from '../proApi';
+import ProBadge from '../components/ProBadge';
 
 // v1 scope, per the answers we settled on before building this:
 //   - Everyone sees everyone (no role-based visibility restrictions)
@@ -57,6 +59,7 @@ export default function DirectoryScreen({ onOpenProfile }) {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [proIds, setProIds] = useState(() => new Set()); // Creator Pro members
 
   // Girik's second screen recording proved the previous fix wrong: it
   // showed EVERY filter pill — not just the selected one, and regardless
@@ -99,6 +102,7 @@ export default function DirectoryScreen({ onOpenProfile }) {
     // People I've blocked (or who blocked me) don't show up in the directory.
     const visible = withoutBlocked(data || [], 'auth_user_id', await fetchBlockedIdSet());
     setPeople(visible);
+    setProIds(await fetchProIds());
 
     // Profile pictures live in a private storage bucket, so a plain public
     // URL won't work — batch-request short-lived signed URLs for every
@@ -143,8 +147,12 @@ export default function DirectoryScreen({ onOpenProfile }) {
         return false;
       });
     }
+    // Creator Pro members are listed first (priority placement); everyone else keeps their order.
+    if (proIds.size) {
+      list = [...list].sort((a, b) => (proIds.has(b.auth_user_id) ? 1 : 0) - (proIds.has(a.auth_user_id) ? 1 : 0));
+    }
     return list;
-  }, [people, filter, search]);
+  }, [people, filter, search, proIds]);
 
   if (people === null) {
     return (
@@ -232,6 +240,7 @@ export default function DirectoryScreen({ onOpenProfile }) {
                   <View style={styles.roleBadge}>
                     <Text style={styles.roleBadgeText}>{(ROLE_LABELS[item.role] || item.role).replace('Spiritual ', '').replace('Priest / ', '').toUpperCase()}</Text>
                   </View>
+                  {proIds.has(item.auth_user_id) && <ProBadge />}
                 </View>
                 <Text style={styles.summary} numberOfLines={1}>{summaryFor(item)}</Text>
                 {pending && (

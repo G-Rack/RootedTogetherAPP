@@ -7,6 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { supabase } from '../supabaseClient';
 import { WEB_BASE_URL } from '../config';
+import { fetchIsPro } from '../proApi';
 
 // Payouts & Referrals for Leader roles (Mothers, Pastors, Influencers).
 // Every number here is read live from the same Supabase project as the website
@@ -87,6 +88,7 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
   const [balanceError, setBalanceError] = useState(null);
   const [paying, setPaying] = useState(false);
   const [openingStripe, setOpeningStripe] = useState(false);
+  const [isPro, setIsPro] = useState(false); // Creator Pro: no Rooted fee, only Stripe's card fee
 
   // Referrals
   const [realCode, setRealCode] = useState(undefined); // undefined = loading, null = none
@@ -105,6 +107,8 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
       setLoading(false);
       return;
     }
+
+    setIsPro(await fetchIsPro(uid));
 
     // Offerings first, so their purchases can be found.
     const offeringsRes = await supabase.from('offerings').select('id, title').eq('creator_auth_id', uid);
@@ -278,6 +282,9 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
       : 'You are on the top tier.';
 
   const connected = payoutsEnabled;
+  const feeNote = isPro
+    ? 'Earnings are after Stripe’s card fee only. Creator Pro has no Rooted Together fee.'
+    : 'Earnings are after the 10% platform fee.';
   const canPayOut = connected && balance && balance.availableCents >= balance.minPayoutCents;
   const heroLabel = connected ? 'Available Balance' : 'Lifetime earned';
   const heroAmount = connected ? (balance ? money(balance.availableCents) : '—') : money(lifetimeCents);
@@ -330,8 +337,8 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
 
             <Text style={styles.balanceNote}>
               {connected
-                ? (balanceError || 'Earnings are after the 10% platform fee. Referral cuts are tracked separately below.')
-                : 'Earnings are after the 10% platform fee. Finish Stripe setup on the website to get paid out.'}
+                ? (balanceError || `${feeNote} Referral cuts are tracked separately below.`)
+                : `${feeNote} Finish Stripe setup on the website to get paid out.`}
             </Text>
 
             <TouchableOpacity

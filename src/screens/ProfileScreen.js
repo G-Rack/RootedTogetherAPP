@@ -11,8 +11,10 @@ import {
   updateMyProfilePicture, deleteMyAccount,
 } from '../postsApi';
 import { fetchMyCommunities, getGrowthScore } from '../communitiesApi';
-import { WEB_BASE_URL } from '../config';
+import { WEB_BASE_URL, PRO_UPGRADE_URL, SHOW_PRO_UPGRADE_LINK } from '../config';
 import { openInApp } from '../openInApp';
+import { fetchIsPro } from '../proApi';
+import ProBadge from '../components/ProBadge';
 import BlockedUsersScreen from './BlockedUsersScreen';
 import { fetchMyFullProfileRow } from '../profileEditing';
 import { buildChecklist } from '../profileChecklist';
@@ -56,6 +58,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
   const [feedPostId, setFeedPostId] = useState(null);
   const [person, setPerson] = useState(undefined); // undefined = loading, null = no row found
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [isPro, setIsPro] = useState(null); // Creator Pro badge (null = not checked yet)
   const [posts, setPosts] = useState([]);
   const [imageUrls, setImageUrls] = useState({});
   const [followerCount, setFollowerCount] = useState(0);
@@ -88,6 +91,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
   const load = useCallback(async () => {
     const data = await fetchMyDirectoryPerson(myAuthId);
     setPerson(data || null);
+    setIsPro(await fetchIsPro(data?.auth_user_id));
 
     // Did they skip the optional "tell us more about yourself" step at
     // sign-up (see the Sign-up Decision screen's "Skip for now") and never
@@ -597,9 +601,25 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
         <View style={styles.roleBadge}>
           <Text style={styles.roleBadgeText}>{(ROLE_LABELS[person.role] || person.role).toUpperCase()}</Text>
         </View>
+        {isPro && <ProBadge large style={{ marginTop: 6 }} />}
         {person.vetting_status === 'Needs Vetting' && (
           <View style={styles.pendingBadge}>
             <Text style={styles.pendingBadgeText}>Pending vetting</Text>
+          </View>
+        )}
+        {isPro === false && ['influencer', 'mother', 'pastor'].includes(person.role) && (
+          <View style={styles.proCard}>
+            <Text style={styles.proCardTitle}>Creator Pro</Text>
+            <Text style={styles.proCardText}>
+              0% Rooted Together fee, the Rooted Pro badge with priority placement, Daily Prayers, Meditation and Special Requests, the Creator Academy and a private Pro community.
+            </Text>
+            {SHOW_PRO_UPGRADE_LINK ? (
+              <TouchableOpacity style={styles.proCardBtn} onPress={() => openInApp(PRO_UPGRADE_URL)} activeOpacity={0.85}>
+                <Text style={styles.proCardBtnText}>Upgrade for $39</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.proCardText}>Upgrade on the Rooted Together website, in your creator dashboard.</Text>
+            )}
           </View>
         )}
         {!profileDetailsComplete && (
@@ -780,6 +800,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.errorBg, borderWidth: 1, borderColor: colors.errorBorder,
     borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, marginTop: 14,
   },
+  proCard: {
+    alignSelf: 'stretch', marginTop: 14, marginHorizontal: 16, padding: 14, borderRadius: 14,
+    backgroundColor: colors.creamDark, borderWidth: 1, borderColor: '#C8923F',
+  },
+  proCardTitle: { fontFamily: serif, fontSize: 16, fontWeight: '700', color: colors.brown, marginBottom: 4 },
+  proCardText: { fontSize: 12.5, color: colors.textSoft, lineHeight: 18 },
+  proCardBtn: { alignSelf: 'flex-start', marginTop: 10, backgroundColor: colors.brown, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 18 },
+  proCardBtnText: { color: colors.white, fontSize: 13, fontWeight: '700' },
   completeBannerText: { flex: 1, fontSize: 12.5, color: colors.errorText, lineHeight: 17 },
   notifDot: {
     position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 4.5,

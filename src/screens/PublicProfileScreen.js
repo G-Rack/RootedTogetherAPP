@@ -16,6 +16,8 @@ import { fetchFamilyByLeader, fetchMyMembership, requestToJoinFamily, withdrawRe
 import { fetchMyCommunities } from '../communitiesApi';
 import { WEB_BASE_URL } from '../config';
 import { openInApp } from '../openInApp';
+import { fetchIsPro } from '../proApi';
+import ProBadge from '../components/ProBadge';
 
 // Only Seekers/Assistants can request to join a family, and only Mothers/
 // Pastors lead one — matches Spiritual Family's formation rules exactly.
@@ -82,6 +84,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
   const [familyBusy, setFamilyBusy] = useState(false);
   const [familyError, setFamilyError] = useState(null);
   const [shopHandle, setShopHandle] = useState(null);
+  const [isPro, setIsPro] = useState(false);
   const [theirCommunities, setTheirCommunities] = useState(null); // null = loading
 
   const myAuthId = session?.user?.id;
@@ -105,6 +108,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
     setTheirCommunities(null);
     const data = await fetchDirectoryPerson(role, id);
     setPerson(data || null);
+    setIsPro(await fetchIsPro(data?.auth_user_id));
 
     if (data?.profile_picture_path) {
       const urls = await fetchSignedUrls('profile-pictures', [data.profile_picture_path]);
@@ -410,6 +414,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>{(ROLE_LABELS[person.role] || person.role).toUpperCase()}</Text>
             </View>
+            {isPro && <ProBadge large style={{ marginTop: 6 }} />}
             {person.vetting_status === 'Needs Vetting' && (
               <View style={styles.pendingBadge}>
                 <Text style={styles.pendingBadgeText}>Pending vetting</Text>

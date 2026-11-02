@@ -30,3 +30,10 @@ export const REVOKE_APPLE_TOKEN_ENDPOINT = `${SUPABASE_URL}/functions/v1/revoke-
 // WEB_BASE_URL/creator/<handle>, matching rooted-web's app/creator/[handle]
 // route exactly. Used by the profile screen's shop icon.
 export const WEB_BASE_URL = 'https://rootedtogether.club';
+
+// Creator Pro upgrade ($39, for existing Creator members), bought on the website.
+// If the app stores object to an in-app link to a purchase page, set
+// SHOW_PRO_UPGRADE_LINK to false: the card then just tells people to upgrade on
+// the website, with no button.
+export const PRO_UPGRADE_URL = 'https://buy.stripe.com/aFaeVe7LWbtv0XV9KO0gw03';
+export const SHOW_PRO_UPGRADE_LINK = true;

@@ -17,6 +17,13 @@ with native code, or touches permissions, icon, splash or the Expo SDK.)
 - Replying to messages needs Premium
 
 ## Pending
+- [ ] CREATOR PRO BADGE (OTA update, no new build needed): gold "PRO" pill on Directory cards, "ROOTED PRO" badge on
+      profiles (own and other people's), and Creator Pro members listed first in the Directory. Read-only: Pro is bought
+      on the website and stored in the creator_pro table. New files: src/proApi.js, src/components/ProBadge.js.
+      Test: sign in as sara@gmail.com / check Directory and her profile.
+      Also: Profile shows a "Creator Pro" upgrade card (links to the $39 Stripe link) for Mothers/Pastors/Influencers who
+      are not Pro (flip SHOW_PRO_UPGRADE_LINK in src/config.js to hide the button if the app stores object), and the
+      earnings note says "Stripe's card fee only" for Pro creators instead of "10% platform fee".
 - [ ] NEW SIGN-UP (Expo Go only, no new build needed): one account screen (email + password; Apple/Google
       buttons show "coming soon"), then a few tap-to-answer slides on a dark brown screen: how you'll use the
       app -> (Seeker) what you're walking through -> who it's for + faith -> name & date of birth.
