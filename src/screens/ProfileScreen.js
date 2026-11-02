@@ -427,6 +427,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
             )}
           </View>
           <Text style={styles.handleText}>{handleFor(person.name)}</Text>
+          {isPro && <ProBadge large style={{ marginTop: 8 }} />}
           {person.story ? (
             <View style={styles.bioWrap}>
               {/* Invisible full-height measurer: tells us whether the real
@@ -456,6 +457,22 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           {person.vetting_status === 'Needs Vetting' && (
             <View style={styles.pendingBadge}>
               <Text style={styles.pendingBadgeText}>Pending vetting</Text>
+            </View>
+          )}
+
+          {isPro === false && ['influencer', 'mother', 'pastor'].includes(person.role) && (
+            <View style={styles.proCard}>
+              <Text style={styles.proCardTitle}>Creator Pro</Text>
+              <Text style={styles.proCardText}>
+                0% Rooted Together fee, the Rooted Pro badge with priority placement, Daily Prayers, Meditation and Special Requests, the Creator Academy and a private Pro community.
+              </Text>
+              {SHOW_PRO_UPGRADE_LINK ? (
+                <TouchableOpacity style={styles.proCardBtn} onPress={() => openInApp(PRO_UPGRADE_URL)} activeOpacity={0.85}>
+                  <Text style={styles.proCardBtnText}>Upgrade for $39</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.proCardText}>Upgrade on the Rooted Together website, in your creator dashboard.</Text>
+              )}
             </View>
           )}
 
@@ -605,21 +622,6 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
         {person.vetting_status === 'Needs Vetting' && (
           <View style={styles.pendingBadge}>
             <Text style={styles.pendingBadgeText}>Pending vetting</Text>
-          </View>
-        )}
-        {isPro === false && ['influencer', 'mother', 'pastor'].includes(person.role) && (
-          <View style={styles.proCard}>
-            <Text style={styles.proCardTitle}>Creator Pro</Text>
-            <Text style={styles.proCardText}>
-              0% Rooted Together fee, the Rooted Pro badge with priority placement, Daily Prayers, Meditation and Special Requests, the Creator Academy and a private Pro community.
-            </Text>
-            {SHOW_PRO_UPGRADE_LINK ? (
-              <TouchableOpacity style={styles.proCardBtn} onPress={() => openInApp(PRO_UPGRADE_URL)} activeOpacity={0.85}>
-                <Text style={styles.proCardBtnText}>Upgrade for $39</Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.proCardText}>Upgrade on the Rooted Together website, in your creator dashboard.</Text>
-            )}
           </View>
         )}
         {!profileDetailsComplete && (

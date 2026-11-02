@@ -296,6 +296,7 @@ export default function PublicProfileScreen({ role, id, session, onBack, onOpenC
               )}
             </View>
             <Text style={styles.handleText}>{handleFor(person.name)}</Text>
+            {isPro && <ProBadge large style={{ marginTop: 8 }} />}
             {person.story ? (
               <View style={styles.bioWrap}>
                 <Text
