@@ -464,7 +464,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
             <View style={styles.proCard}>
               <Text style={styles.proCardTitle}>Creator Pro</Text>
               <Text style={styles.proCardText}>
-                0% Rooted Together fee, the Rooted Pro badge with priority placement, Daily Prayers, Meditation and Special Requests, the Creator Academy and a private Pro community.
+                A 5% Rooted Together fee instead of 10%, the Rooted Pro badge with priority placement, Daily Prayers, Meditation and Special Requests, the Creator Academy and a private Pro community.
               </Text>
               {SHOW_PRO_UPGRADE_LINK ? (
                 <TouchableOpacity style={styles.proCardBtn} onPress={() => openInApp(PRO_UPGRADE_URL)} activeOpacity={0.85}>

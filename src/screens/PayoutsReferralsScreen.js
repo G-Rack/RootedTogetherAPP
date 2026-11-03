@@ -43,8 +43,8 @@ function shortDate(iso) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// What the creator keeps from one sale: the price minus our 10% platform fee.
-// Stripe's card fee is paid by Rooted Together out of that 10%, not by the creator.
+// What the creator keeps from one sale: the price minus the platform fee we recorded
+// for it (10%, or 5% for paid Pro, plus an estimate of Stripe's card fee).
 function netOf(row, amountKey) {
   const gross = Number(row[amountKey]) || 0;
   const net = gross - (Number(row.platform_fee_cents) || 0);
@@ -88,7 +88,7 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
   const [balanceError, setBalanceError] = useState(null);
   const [paying, setPaying] = useState(false);
   const [openingStripe, setOpeningStripe] = useState(false);
-  const [isPro, setIsPro] = useState(false); // Creator Pro: no Rooted fee, only Stripe's card fee
+  const [isPro, setIsPro] = useState(false); // Creator Pro: 5% platform fee instead of 10%
 
   // Referrals
   const [realCode, setRealCode] = useState(undefined); // undefined = loading, null = none
@@ -283,8 +283,8 @@ export default function PayoutsReferralsScreen({ onBack, person }) {
 
   const connected = payoutsEnabled;
   const feeNote = isPro
-    ? 'Earnings are after Stripe’s card fee only. Creator Pro has no Rooted Together fee.'
-    : 'Earnings are after the 10% platform fee.';
+    ? 'Earnings are after our platform fee and Stripe’s card fee.'
+    : 'Earnings are after our platform fee (10%) and Stripe’s card fee.';
   const canPayOut = connected && balance && balance.availableCents >= balance.minPayoutCents;
   const heroLabel = connected ? 'Available Balance' : 'Lifetime earned';
   const heroAmount = connected ? (balance ? money(balance.availableCents) : '—') : money(lifetimeCents);
