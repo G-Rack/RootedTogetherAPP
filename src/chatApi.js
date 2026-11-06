@@ -7,11 +7,11 @@ import { fetchBlockedIdSet, withoutBlocked } from './moderationApi';
 import { notifyPush } from './notifications';
 
 // --- Premium ---
-// There's no real billing anywhere in the app yet. "Upgrading" just flips
-// this flag on the signed-in person's own `profiles` row — a real,
-// persisted decision, just not a paid one. profiles_select_own /
-// profiles_update_own (auth.uid() = id) already allow this; no new RLS
-// was needed for it.
+// Premium is granted only by the server: RevenueCat tells the
+// `revenuecat-webhook` edge function about a purchase, and that function sets
+// profiles.is_premium. A database trigger blocks the app from writing that
+// column itself, so the app can only READ it (below) and wait for it to flip
+// after a purchase.
 export async function fetchIsPremium(myAuthId) {
   if (!myAuthId) return false;
   const { data, error } = await supabase
@@ -23,9 +23,16 @@ export async function fetchIsPremium(myAuthId) {
   return !!data.is_premium;
 }
 
-export async function upgradeToPremium(myAuthId) {
-  const { error } = await supabase.from('profiles').update({ is_premium: true }).eq('id', myAuthId);
-  if (error) throw error;
+// After a store purchase, give the server a few seconds to receive
+// RevenueCat's notice. Resolves true as soon as the flag is on, false if it
+// hasn't flipped yet (the caller still unlocks locally; the next app open
+// reads the real flag).
+export async function waitForPremium(myAuthId, tries = 10, delayMs = 1500) {
+  for (let i = 0; i < tries; i++) {
+    if (await fetchIsPremium(myAuthId)) return true;
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return false;
 }
 
 // --- Conversations ---

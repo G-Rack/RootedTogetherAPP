@@ -468,7 +468,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
               </Text>
               {SHOW_PRO_UPGRADE_LINK ? (
                 <TouchableOpacity style={styles.proCardBtn} onPress={() => openInApp(PRO_UPGRADE_URL)} activeOpacity={0.85}>
-                  <Text style={styles.proCardBtnText}>Upgrade for $39</Text>
+                  <Text style={styles.proCardBtnText}>Upgrade for $39 a year</Text>
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.proCardText}>Upgrade on the Rooted Together website, in your creator dashboard.</Text>

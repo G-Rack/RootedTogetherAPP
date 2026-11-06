@@ -20,7 +20,7 @@ import CreateCommunityPostScreen from './CreateCommunityPostScreen';
 import CommunityPostCommentsScreen from './CommunityPostCommentsScreen';
 import { initBilling, hasActivePremium } from '../billing';
 import { registerForPushNotifications, listenForNotificationTaps } from '../notifications';
-import { fetchIsPremium, upgradeToPremium, findConversationBetween, getOrCreateConversation } from '../chatApi';
+import { fetchIsPremium, waitForPremium, findConversationBetween, getOrCreateConversation } from '../chatApi';
 
 // The logged-in home base. No React Navigation here — the whole app already
 // switches screens with plain local state (see App.js), so this tab bar
@@ -62,18 +62,16 @@ export default function HomeTabs({ session, onLogOut, initialProfileIntent }) {
 
   const myAuthId = session?.user?.id;
 
-  // Loaded once per session — there's no real billing to poll, the only
-  // way this changes is the person tapping "Upgrade to Premium"
-  // themselves, which updates this state directly (see handleUpgrade).
+  // Loaded once per session. Premium is set by the server (RevenueCat ->
+  // revenuecat-webhook); this only reads it. After a purchase handleUpgrade
+  // unlocks immediately and waits for the server flag in the background.
   useEffect(() => {
     fetchIsPremium(myAuthId).then(setIsPremium).catch(() => {});
     // Store subscriptions (billing.js): if this account already has an
-    // active Premium subscription (e.g. bought on another device), mark it.
+    // active Premium subscription (e.g. bought on another device), unlock
+    // here too. Display only: the database flag is set by the server.
     initBilling(myAuthId).then(async (ready) => {
-      if (ready && (await hasActivePremium())) {
-        upgradeToPremium(myAuthId).catch(() => {});
-        setIsPremium(true);
-      }
+      if (ready && (await hasActivePremium())) setIsPremium(true);
     });
   }, [myAuthId]);
 
@@ -122,12 +120,12 @@ export default function HomeTabs({ session, onLogOut, initialProfileIntent }) {
     setOverlay({ type: 'communitiesBrowse' });
   }
 
-  // Runs after a successful store purchase (or, until billing.js has
-  // RevenueCat keys, straight from the button): marks this person Premium
-  // and lets whatever they were doing continue.
+  // Runs after a successful store purchase (or a restore): unlocks right
+  // away and lets whatever they were doing continue. The real flag is set by
+  // the server via RevenueCat's webhook; we just wait briefly for it.
   async function handleUpgrade() {
-    await upgradeToPremium(myAuthId);
     setIsPremium(true);
+    waitForPremium(myAuthId).catch(() => {});
   }
 
   function openThread(conversation, otherPerson, initialDraft) {
