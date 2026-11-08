@@ -92,12 +92,17 @@ export function buildChecklist(role, row) {
     optional: !!optional,
     done: !!row && filled(row[column]),
   }));
-  const done = items.filter((i) => i.done).length;
+  // Only the important (non-optional) items count towards the progress bar and
+  // decide whether the Explore card shows. Optional items (Website, Instagram,
+  // nickname) still appear in the checklist screen, tagged "Optional", but
+  // never keep the banner on Explore alive.
+  const counted = items.filter((i) => !i.optional);
+  const done = counted.filter((i) => i.done).length;
   return {
     items,
     done,
-    total: items.length,
-    complete: items.length > 0 && done === items.length,
+    total: counted.length,
+    complete: counted.length > 0 && done === counted.length,
     showCredentials: CREDENTIAL_ROLES.includes(role),
   };
 }

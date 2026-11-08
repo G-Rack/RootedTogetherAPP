@@ -1,13 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import PostCard from '../components/PostCard';
 import FinishProfileCard from '../components/FinishProfileCard';
 import CommunityPostCard from '../components/CommunityPostCard';
+import StoriesRow from '../components/StoriesRow';
+import StoryViewer from '../components/StoryViewer';
+import CameraPage from '../components/CameraPage';
 import {
   fetchPosts, fetchSignedUrls, fetchLikeMeta, fetchCommentCounts, toggleLike, getMyLeaderRow,
-  fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId,
+  fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId, fetchActiveStories,
 } from '../postsApi';
 import {
   fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, setHelpful,
@@ -20,11 +23,12 @@ import {
 // Communities should surface through Explore and profiles rather than
 // living on its own bottom tab). Everyone logged in can view, like, and
 // comment; only an Approved Spiritual Leader, Mother, or Pastor sees the
-// "+ New Post" button. A small leaf icon up top opens the full Communities
+// camera page, reached by swiping the feed sideways (or tapping the camera
+// icon up top), where they choose a Story or a Post. A small leaf icon up top opens the full Communities
 // directory (search/browse/create) — the only other entry point besides
 // someone's profile.
 export default function ExploreScreen({
-  session, onOpenAuthor, onOpenComments, onCreatePost, onSearchPeople,
+  session, onOpenAuthor, onOpenComments, onCreatePost, onCreateStory, onSearchPeople,
   onOpenCommunity, onOpenCommunityComments, onBrowseCommunities, onOpenChecklist,
 }) {
   const [feed, setFeed] = useState(null); // null = loading; array of {kind:'leader'|'community', post, ...}
@@ -41,8 +45,61 @@ export default function ExploreScreen({
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [canPost, setCanPost] = useState(false);
+  const [storyGroups, setStoryGroups] = useState([]);
+  const [storyImages, setStoryImages] = useState({});
+  const [me, setMe] = useState(null);
+  const [viewerIndex, setViewerIndex] = useState(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const pagerRef = useRef(null);
+  const pagerStarted = useRef(false);
 
   const myAuthId = session?.user?.id;
+
+  // Story circles: me first, then people I follow, then everyone else with
+  // an active story. Never lets a story problem break the feed.
+  const loadStories = useCallback(async () => {
+    try {
+      const rows = await fetchActiveStories();
+      const ids = [...new Set([...rows.map((r) => r.author_auth_id), myAuthId].filter(Boolean))];
+      const [authors, follows] = await Promise.all([
+        fetchAuthorsByAuthId(ids),
+        fetchFollowMeta(ids.filter((id) => id !== myAuthId), myAuthId),
+      ]);
+      const [imgs, avs] = await Promise.all([
+        fetchSignedUrls('post-images', rows.map((r) => r.image_path)),
+        fetchSignedUrls('profile-pictures', Object.values(authors).map((a) => a.profile_picture_path)),
+      ]);
+      const byAuthor = {};
+      rows.forEach((r) => { (byAuthor[r.author_auth_id] = byAuthor[r.author_auth_id] || []).push(r); });
+      const groups = Object.keys(byAuthor).map((id) => {
+        const a = authors[id];
+        const list = byAuthor[id];
+        return {
+          authorId: id,
+          name: a ? a.name : null,
+          avatarUrl: a && a.profile_picture_path ? avs[a.profile_picture_path] || null : null,
+          stories: list,
+          isMe: id === myAuthId,
+          latest: new Date(list[list.length - 1].created_at).getTime(),
+          followed: !!(follows[id] && follows[id].followedByMe),
+        };
+      });
+      groups.sort((x, y) => {
+        if (x.isMe !== y.isMe) return x.isMe ? -1 : 1;
+        if (x.followed !== y.followed) return x.followed ? -1 : 1;
+        return y.latest - x.latest;
+      });
+      const mine = authors[myAuthId];
+      setMe({
+        name: mine ? mine.name : null,
+        avatarUrl: mine && mine.profile_picture_path ? avs[mine.profile_picture_path] || null : null,
+      });
+      setStoryImages(imgs);
+      setStoryGroups(groups);
+    } catch (e) {
+      // Stories are a nice-to-have on this screen; stay quiet if they fail.
+    }
+  }, [myAuthId]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -100,15 +157,24 @@ export default function ExploreScreen({
       setCommunityHelpfulMeta(cHelpful);
       setCommunityCommentCounts(cComments);
       setCommunitiesById(communityMap);
+      await loadStories();
     } catch (e) {
       setError('Couldn’t load Explore right now. Pull down to try again.');
       setFeed([]);
     }
-  }, [myAuthId]);
+  }, [myAuthId, loadStories]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // Start on the feed page (the camera page sits to its left).
+  useEffect(() => {
+    if (canPost && box.w > 0 && !pagerStarted.current) {
+      pagerStarted.current = true;
+      setTimeout(() => { pagerRef.current && pagerRef.current.scrollTo({ x: box.w, y: 0, animated: false }); }, 0);
+    }
+  }, [canPost, box.w]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -178,14 +244,19 @@ export default function ExploreScreen({
     );
   }
 
-  return (
-    <View style={styles.wrap}>
+  const feedBody = (
+    <>
       <View style={styles.headerRow}>
         <Text style={styles.header}>Explore</Text>
         <View style={styles.headerActions}>
           {canPost && (
-            <TouchableOpacity style={styles.newPostBtn} onPress={onCreatePost}>
-              <Text style={styles.newPostBtnText}>+ New Post</Text>
+            <TouchableOpacity
+              style={styles.searchBtn}
+              onPress={() => pagerRef.current && pagerRef.current.scrollTo({ x: 0, y: 0, animated: true })}
+              activeOpacity={0.7}
+              accessibilityLabel="Open camera to add a story or post"
+            >
+              <Ionicons name="camera-outline" size={19} color={colors.brown} />
             </TouchableOpacity>
           )}
           <TouchableOpacity style={styles.searchBtn} onPress={onBrowseCommunities} activeOpacity={0.7}>
@@ -208,6 +279,15 @@ export default function ExploreScreen({
       <FlatList
         style={styles.feedList}
         data={feed}
+        ListHeaderComponent={
+          <StoriesRow
+            groups={storyGroups}
+            me={me}
+            canPost={canPost}
+            onAdd={() => pagerRef.current && pagerRef.current.scrollTo({ x: 0, y: 0, animated: true })}
+            onOpenGroup={(i) => setViewerIndex(i)}
+          />
+        }
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brown} />}
         ListEmptyComponent={
@@ -262,12 +342,70 @@ export default function ExploreScreen({
           );
         }}
       />
+    </>
+  );
+
+  const viewer = (
+    <StoryViewer
+      visible={viewerIndex !== null}
+      groups={storyGroups}
+      startIndex={viewerIndex || 0}
+      imageUrls={storyImages}
+      myAuthId={myAuthId}
+      onClose={() => setViewerIndex(null)}
+      onDeleted={() => { setViewerIndex(null); loadStories(); }}
+      onHideAuthor={(id) => { setViewerIndex(null); setStoryGroups((g) => g.filter((x) => x.authorId !== id)); }}
+      onBlocked={() => { setViewerIndex(null); load(); }}
+    />
+  );
+
+  // Only people who can post get the sideways camera page.
+  if (!canPost) {
+    return (
+      <View style={styles.wrap}>
+        {feedBody}
+        {viewer}
+      </View>
+    );
+  }
+
+  return (
+    <View
+      style={styles.pagerBox}
+      onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
+      {box.w > 0 ? (
+        <ScrollView
+          ref={pagerRef}
+          horizontal
+          pagingEnabled
+          bounces={false}
+          showsHorizontalScrollIndicator={false}
+          directionalLockEnabled
+          style={{ flex: 1 }}
+          contentOffset={{ x: box.w, y: 0 }}
+        >
+          <View style={{ width: box.w, height: box.h }}>
+            <CameraPage
+              onPicked={(mode, image) => (mode === 'story' ? onCreateStory(image) : onCreatePost(image))}
+              onTextPost={() => onCreatePost(null)}
+            />
+          </View>
+          <View style={{ width: box.w, height: box.h, paddingHorizontal: 24, paddingTop: 4 }}>
+            {feedBody}
+          </View>
+        </ScrollView>
+      ) : null}
+      {viewer}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, paddingTop: 4 },
+  // The sideways pager runs edge to edge, so it breaks out of the app's 24px
+  // side padding; the feed page puts that padding back inside.
+  pagerBox: { flex: 1, marginHorizontal: -24 },
   // Posts run edge to edge, so the feed list is pulled out of the app's
   // 24px side padding; community cards are put back inside it.
   feedList: { marginHorizontal: -24 },

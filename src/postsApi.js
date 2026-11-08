@@ -7,6 +7,7 @@ import { notifyPush } from './notifications';
 import { UPDATE_PROFILE_PICTURE_ENDPOINT, DELETE_ACCOUNT_ENDPOINT, REVOKE_APPLE_TOKEN_ENDPOINT } from './config';
 import { getAppleAuthorizationCode } from './socialAuth';
 import { hideBlocked } from './moderationApi';
+import { decode } from 'base64-arraybuffer';
 
 // Fetches the feed, or one author's posts when authorId (their AUTH user
 // id — posts.author_auth_id, same id used everywhere else: comments, likes,
@@ -351,4 +352,48 @@ export async function fetchPostLikers(postId) {
   const visible = await hideBlocked(data, 'user_auth_id');
   const authors = await fetchAuthorsByAuthId(visible.map((r) => r.user_auth_id));
   return visible.map((r) => authors[r.user_auth_id]).filter(Boolean);
+}
+
+// --- Stories ------------------------------------------------------------
+// Photo stories that disappear after 24 hours. The database only ever returns
+// stories that haven't expired (see the stories_select_active policy), so the
+// app never has to check the clock itself. Photos go in the same private
+// post-images bucket, under the person's own auth-id folder.
+
+// Every active story, oldest first (so a person's stories play in the order
+// they were shared). People I've blocked, or who blocked me, never appear.
+export async function fetchActiveStories() {
+  const { data, error } = await supabase
+    .from('stories')
+    .select('id, author_auth_id, image_path, caption, created_at, expires_at')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return hideBlocked(data || [], 'author_auth_id');
+}
+
+// image: { base64, fileName, mimeType } from the image picker.
+export async function createStory(myAuthId, image, caption) {
+  if (!image || !image.base64) throw new Error('Pick a photo first.');
+  const path = `${myAuthId}/story-${Date.now()}.jpg`;
+  const { error: uploadError } = await supabase.storage
+    .from('post-images')
+    .upload(path, decode(image.base64), { contentType: image.mimeType || 'image/jpeg' });
+  if (uploadError) throw uploadError;
+  const { error: insertError } = await supabase.from('stories').insert({
+    author_auth_id: myAuthId,
+    image_path: path,
+    caption: caption && caption.trim() ? caption.trim().slice(0, 200) : null,
+  });
+  if (insertError) {
+    // Don't leave an orphaned photo behind if the row didn't save.
+    await supabase.storage.from('post-images').remove([path]).catch(() => {});
+    throw insertError;
+  }
+}
+
+export async function deleteStory(story) {
+  const { error } = await supabase.from('stories').delete().eq('id', story.id);
+  if (error) throw error;
+  await supabase.storage.from('post-images').remove([story.image_path]).catch(() => {});
 }

@@ -7,6 +7,7 @@ import ExploreScreen from './ExploreScreen';
 import DirectoryScreen from './DirectoryScreen';
 import ProfileScreen from './ProfileScreen';
 import CreatePostScreen from './CreatePostScreen';
+import CreateStoryScreen from './CreateStoryScreen';
 import PostCommentsScreen from './PostCommentsScreen';
 import PublicProfileScreen from './PublicProfileScreen';
 import ChatListScreen from './ChatListScreen';
@@ -212,6 +213,16 @@ export default function HomeTabs({ session, onLogOut, initialProfileIntent }) {
     body = (
       <CreatePostScreen
         session={session}
+        initialImage={overlay.image || null}
+        onBack={closeOverlay}
+        onPosted={closeOverlay}
+      />
+    );
+  } else if (overlay?.type === 'createStory') {
+    body = (
+      <CreateStoryScreen
+        session={session}
+        image={overlay.image}
         onBack={closeOverlay}
         onPosted={closeOverlay}
       />
@@ -275,7 +286,8 @@ export default function HomeTabs({ session, onLogOut, initialProfileIntent }) {
         session={session}
         onOpenAuthor={openProfile}
         onOpenComments={openComments}
-        onCreatePost={() => setOverlay({ type: 'createPost' })}
+        onCreatePost={(image) => setOverlay({ type: 'createPost', image: image || null })}
+        onCreateStory={(image) => setOverlay({ type: 'createStory', image })}
         onSearchPeople={() => selectTab('directory')}
         onOpenCommunity={openCommunity}
         onOpenCommunityComments={openCommunityPostComments}

@@ -10,11 +10,11 @@ import ImagePickerField from '../components/ImagePickerField';
 // post — an image with an optional caption, or a text-only "thread". At
 // least one of the two is required (matches the posts_has_content check on
 // the table).
-export default function CreatePostScreen({ session, onBack, onPosted }) {
+export default function CreatePostScreen({ session, onBack, onPosted, initialImage = null }) {
   const [checking, setChecking] = useState(true);
   const [leaderRow, setLeaderRow] = useState(null);
   const [body, setBody] = useState('');
-  const [image, setImage] = useState(null); // { uri, base64, fileName, mimeType }
+  const [image, setImage] = useState(initialImage); // { uri, base64, fileName, mimeType }
   const [posting, setPosting] = useState(false);
   const [error, setError] = useState(null);
 
