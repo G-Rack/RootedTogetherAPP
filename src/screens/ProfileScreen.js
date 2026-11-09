@@ -460,22 +460,6 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
             </View>
           )}
 
-          {isPro === false && ['influencer', 'mother', 'pastor'].includes(person.role) && (
-            <View style={styles.proCard}>
-              <Text style={styles.proCardTitle}>Creator Pro</Text>
-              <Text style={styles.proCardText}>
-                A 5% Rooted Together fee instead of 10%, the Rooted Pro badge with priority placement, Daily Prayers, Meditation and Special Requests, the Creator Academy and a private Pro community.
-              </Text>
-              {SHOW_PRO_UPGRADE_LINK ? (
-                <TouchableOpacity style={styles.proCardBtn} onPress={() => openInApp(PRO_UPGRADE_URL)} activeOpacity={0.85}>
-                  <Text style={styles.proCardBtnText}>Upgrade for $39 a year</Text>
-                </TouchableOpacity>
-              ) : (
-                <Text style={styles.proCardText}>Upgrade on the Rooted Together website, in your creator dashboard.</Text>
-              )}
-            </View>
-          )}
-
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{formatCount(postCount)}</Text>
