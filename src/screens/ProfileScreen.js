@@ -515,6 +515,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           onBack={() => setFeedPostId(null)}
           onOpenPerson={(p) => onOpenProfile?.(p.role, p.id)}
           onPostRemoved={(postId) => { setPosts((list) => (list || []).filter((x) => x.id !== postId)); setFeedPostId(null); }}
+          onPostEdited={(postId, row) => setPosts((list) => (list || []).map((x) => (x.id === postId ? { ...x, body: row.body, edited_at: row.edited_at } : x)))}
         />
       );
     }

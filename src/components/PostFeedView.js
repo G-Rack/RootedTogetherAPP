@@ -4,7 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import PostCard from './PostCard';
 import PostCommentsScreen from '../screens/PostCommentsScreen';
-import { fetchLikeMeta, fetchCommentCounts, toggleLike, deletePost } from '../postsApi';
+import { fetchLikeMeta, fetchCommentCounts, toggleLike, deletePost, updatePostBody } from '../postsApi';
 
 // Instagram-style "Posts" view a profile grid opens into: one person's posts
 // at full size, scrolled to the one that was tapped. Likes, the "Likes"
@@ -12,7 +12,7 @@ import { fetchLikeMeta, fetchCommentCounts, toggleLike, deletePost } from '../po
 // so Back returns to the same post rather than all the way to the grid.
 export default function PostFeedView({
   session, posts, startPostId, author, authorAvatarUrl, imageUrls,
-  onBack, onOpenPerson, onPostRemoved, onBlocked,
+  onBack, onOpenPerson, onPostRemoved, onPostEdited, onBlocked,
 }) {
   const myAuthId = session?.user?.id;
   const listRef = useRef(null);
@@ -110,6 +110,7 @@ export default function PostFeedView({
               myAuthId={myAuthId}
               onReported={() => onPostRemoved?.(item.id)}
               onDelete={async () => { await deletePost(item); onPostRemoved?.(item.id); }}
+              onEdit={async (text) => { const row = await updatePostBody(item.id, text); onPostEdited?.(item.id, row); }}
               onBlocked={onBlocked}
             />
             </View>

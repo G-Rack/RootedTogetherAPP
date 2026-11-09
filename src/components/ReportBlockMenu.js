@@ -6,6 +6,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import { REPORT_REASONS, reportContent, blockUser } from '../moderationApi';
+import EditTextSheet from './EditTextSheet';
 
 // The "…" button (and its bottom sheet) that puts Report and Block on every
 // piece of other people's content: posts, comments, messages, profiles.
@@ -22,12 +23,14 @@ import { REPORT_REASONS, reportContent, blockUser } from '../moderationApi';
 //
 // ReportBlockSheet is the same sheet without the button, for screens that
 // open it some other way (e.g. long-pressing a chat message).
-export default function ReportBlockMenu({ myAuthId, targetAuthId, size = 18, style, onDelete, ...sheetProps }) {
+export default function ReportBlockMenu({ myAuthId, targetAuthId, size = 18, style, onDelete, onEdit, editText, ...sheetProps }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   if (!targetAuthId) return null;
-  // My own content: the same "…" button, but it offers Delete instead.
+  // My own content: the same "…" button, but it offers Edit and Delete
+  // instead of Report and Block.
   if (targetAuthId === myAuthId) {
-    if (!onDelete) return null;
+    if (!onDelete && !onEdit) return null;
     const noun = sheetProps.noun && sheetProps.noun !== 'content' ? sheetProps.noun : 'post';
     const confirmDelete = () => Alert.alert(
       `Delete this ${noun}?`,
@@ -47,17 +50,35 @@ export default function ReportBlockMenu({ myAuthId, targetAuthId, size = 18, sty
         },
       ]
     );
+    const openOwnMenu = () => {
+      const buttons = [];
+      if (onEdit) buttons.push({ text: `Edit ${noun}`, onPress: () => setEditing(true) });
+      if (onDelete) buttons.push({ text: `Delete ${noun}`, style: 'destructive', onPress: confirmDelete });
+      buttons.push({ text: 'Cancel', style: 'cancel' });
+      Alert.alert('Your ' + noun, undefined, buttons);
+    };
     return (
-      <TouchableOpacity
-        style={[styles.moreBtn, style]}
-        onPress={confirmDelete}
-        activeOpacity={0.6}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        accessibilityRole="button"
-        accessibilityLabel={`Delete your ${noun}`}
-      >
-        <Ionicons name="trash-outline" size={size + 2} color={colors.errorText} />
-      </TouchableOpacity>
+      <>
+        <TouchableOpacity
+          style={[styles.moreBtn, style]}
+          onPress={openOwnMenu}
+          activeOpacity={0.6}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit or delete your ${noun}`}
+        >
+          <Ionicons name="ellipsis-horizontal" size={size} color={colors.textSoft} />
+        </TouchableOpacity>
+        {onEdit ? (
+          <EditTextSheet
+            visible={editing}
+            title={`Edit your ${noun}`}
+            initial={editText || ''}
+            onSave={onEdit}
+            onClose={() => setEditing(false)}
+          />
+        ) : null}
+      </>
     );
   }
   return (

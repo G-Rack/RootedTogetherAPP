@@ -8,6 +8,7 @@ import PostLikersSheet from './PostLikersSheet';
 import DoubleTapLike from './DoubleTapLike';
 import { likeHaptic } from '../haptics';
 import { CONTENT_TYPES } from '../moderationApi';
+import { timeAgo, fullStamp } from '../timeAgo';
 
 // One post, laid out like an Instagram feed post: author row, full-width
 // image at its own shape, a heart / comment / share row with counts, the
@@ -25,23 +26,10 @@ import { CONTENT_TYPES } from '../moderationApi';
 // fetchAuthorsByAuthId (keyed off post.author_auth_id).
 const SITE_URL = 'https://rootedtogether.club';
 
-function formatPostDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const now = new Date();
-  const opts = { month: 'long', day: 'numeric' };
-  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
-  try {
-    return d.toLocaleDateString('en-US', opts);
-  } catch (e) {
-    return d.toDateString();
-  }
-}
-
 export default function PostCard({
   post, author, authorAvatarUrl, imageUrl, liked, likeCount, commentCount,
   onToggleLike, onOpenComments, onOpenAuthor, isFollowing, onToggleFollow,
-  myAuthId, onReported, onBlocked, onOpenPerson, onDelete,
+  myAuthId, onReported, onBlocked, onOpenPerson, onDelete, onEdit,
 }) {
   const verified = author?.vetting_status === 'Approved';
   const { width } = useWindowDimensions();
@@ -92,7 +80,10 @@ export default function PostCard({
               <Text style={styles.authorName} numberOfLines={1}>{author?.name || 'Unknown'}</Text>
               {verified && <Ionicons name="checkmark-circle" size={14} color={colors.brown} style={styles.verifiedIcon} />}
             </View>
-            <Text style={styles.authorRole}>{author?.role ? (ROLE_LABELS[author.role] || author.role) : 'Spiritual Leader'}</Text>
+            <Text style={styles.authorRole}>
+              {author?.role ? (ROLE_LABELS[author.role] || author.role) : 'Spiritual Leader'}
+              {post.created_at ? `  ·  ${timeAgo(post.created_at)}` : ''}
+            </Text>
           </View>
         </TouchableOpacity>
 
@@ -116,6 +107,8 @@ export default function PostCard({
             contentId={post.id}
             noun="post"
             onDelete={onDelete}
+            onEdit={onEdit}
+            editText={post.body || ''}
             onReported={onReported}
             onBlocked={onBlocked}
           />
@@ -182,7 +175,7 @@ export default function PostCard({
         </TouchableOpacity>
       )}
 
-      <Text style={styles.date}>{formatPostDate(post.created_at)}</Text>
+      <Text style={styles.date}>{fullStamp(post.created_at)}{post.edited_at ? '  ·  Edited' : ''}</Text>
 
       <PostLikersSheet
         postId={post.id}

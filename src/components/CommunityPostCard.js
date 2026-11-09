@@ -7,6 +7,7 @@ import ReportBlockMenu from './ReportBlockMenu';
 import DoubleTapLike from './DoubleTapLike';
 import { likeHaptic } from '../haptics';
 import { CONTENT_TYPES } from '../moderationApi';
+import { timeAgo, fullStamp } from '../timeAgo';
 
 // One community post — used both inside a community (CommunityDetailScreen,
 // where the community is already obvious from context) and mixed into the
@@ -18,7 +19,7 @@ import { CONTENT_TYPES } from '../moderationApi';
 // generic like.
 export default function CommunityPostCard({
   post, author, community, helpful, commentCount, onToggleHelpful, onOpenComments, onOpenCommunity, style,
-  myAuthId, onReported, onBlocked, onDelete,
+  myAuthId, onReported, onBlocked, onDelete, onEdit,
 }) {
   return (
     <View style={[styles.card, style]}>
@@ -34,7 +35,10 @@ export default function CommunityPostCard({
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.authorName}>{author?.name || 'Someone'}</Text>
-          <Text style={styles.authorRole}>{author ? (ROLE_LABELS[author.role] || author.role) : ''}</Text>
+          <Text style={styles.authorRole}>
+            {author ? (ROLE_LABELS[author.role] || author.role) : ''}
+            {post.created_at ? `${author ? '  ·  ' : ''}${timeAgo(post.created_at)}` : ''}
+          </Text>
         </View>
         <ReportBlockMenu
           myAuthId={myAuthId}
@@ -44,6 +48,8 @@ export default function CommunityPostCard({
           contentId={post.id}
           noun="post"
           onDelete={onDelete}
+          onEdit={onEdit}
+          editText={post.body || ''}
           onReported={onReported}
           onBlocked={onBlocked}
         />
@@ -59,6 +65,7 @@ export default function CommunityPostCard({
       >
         <Text style={styles.body}>{post.body}</Text>
       </DoubleTapLike>
+      <Text style={styles.stamp}>{fullStamp(post.created_at)}{post.edited_at ? '  ·  Edited' : ''}</Text>
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.actionBtn} onPress={() => { if (!helpful?.helpfulByMe) likeHaptic(); onToggleHelpful(); }} activeOpacity={0.7}>
           <Ionicons
@@ -99,6 +106,7 @@ const styles = StyleSheet.create({
   avatarFallbackText: { color: colors.brown, fontWeight: '700', fontSize: 12 },
   authorName: { fontSize: 13.5, color: colors.text, fontWeight: '700' },
   authorRole: { fontSize: 11, color: colors.textSoft, marginTop: 1 },
+  stamp: { fontSize: 11.5, color: colors.textSoft, marginTop: 8 },
   bodyTap: { minHeight: 56, justifyContent: 'flex-start' },
   body: { fontSize: 14.5, color: colors.text, lineHeight: 20 },
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 20, marginTop: 12 },

@@ -362,6 +362,25 @@ export async function deletePost(post) {
   if (post.image_path) await supabase.storage.from('post-images').remove([post.image_path]).catch(() => {});
 }
 
+// Edit the words of one of my own posts or comments (the database locks
+// everything else and stamps edited_at). Returns the saved row.
+export async function updatePostBody(postId, body) {
+  const { data, error } = await supabase.from('posts').update({ body }).eq('id', postId).select('id, body, edited_at').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateComment(commentId, body) {
+  const { data, error } = await supabase.from('post_comments').update({ body }).eq('id', commentId).select('id, body, edited_at').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteComment(commentId) {
+  const { error } = await supabase.from('post_comments').delete().eq('id', commentId);
+  if (error) throw error;
+}
+
 // --- Stories ------------------------------------------------------------
 // Photo stories that disappear after 24 hours. The database only ever returns
 // stories that haven't expired (see the stories_select_active policy), so the

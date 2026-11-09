@@ -4,7 +4,8 @@ import {
   Platform, Keyboard, Dimensions, LayoutAnimation, UIManager,
 } from 'react-native';
 import { colors, serif } from '../theme';
-import { fetchCommunityPostComments, addCommunityPostComment } from '../communitiesApi';
+import { fetchCommunityPostComments, addCommunityPostComment, updateCommunityComment, deleteCommunityComment } from '../communitiesApi';
+import { timeAgo } from '../timeAgo';
 import { fetchAuthorsByAuthId, fetchSignedUrls } from '../postsApi';
 import { initialsFor, ROLE_LABELS } from '../roleLabels';
 import ReportBlockMenu from '../components/ReportBlockMenu';
@@ -134,7 +135,7 @@ export default function CommunityPostCommentsScreen({ postId, session, onBack })
                   )}
                   <Text style={styles.commentAuthor}>
                     {author?.name || 'Someone'}
-                    <Text style={styles.commentRole}>  {author ? (ROLE_LABELS[author.role] || author.role) : ''}</Text>
+                    <Text style={styles.commentRole}>  {author ? (ROLE_LABELS[author.role] || author.role) : ''}  ·  {timeAgo(item.created_at)}{item.edited_at ? '  ·  edited' : ''}</Text>
                   </Text>
                   <View style={{ flex: 1 }} />
                   <ReportBlockMenu
@@ -146,6 +147,12 @@ export default function CommunityPostCommentsScreen({ postId, session, onBack })
                     noun="comment"
                     size={16}
                     onReported={() => setComments((list) => (list || []).filter((c) => c.id !== item.id))}
+                    onDelete={async () => { await deleteCommunityComment(item.id); setComments((list) => (list || []).filter((c) => c.id !== item.id)); }}
+                    onEdit={async (text) => {
+                      const row = await updateCommunityComment(item.id, text);
+                      setComments((list) => (list || []).map((c) => (c.id === item.id ? { ...c, body: row.body, edited_at: row.edited_at } : c)));
+                    }}
+                    editText={item.body}
                     onBlocked={load}
                   />
                 </View>

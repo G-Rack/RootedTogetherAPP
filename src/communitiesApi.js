@@ -254,3 +254,20 @@ export async function deleteCommunityPost(postId) {
   const { error } = await supabase.from('community_posts').delete().eq('id', postId);
   if (error) throw error;
 }
+
+export async function updateCommunityPostBody(postId, body) {
+  const { data, error } = await supabase.from('community_posts').update({ body }).eq('id', postId).select('id, body, edited_at').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCommunityComment(commentId, body) {
+  const { data, error } = await supabase.from('community_post_comments').update({ body }).eq('id', commentId).select('id, body, edited_at').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCommunityComment(commentId) {
+  const { error } = await supabase.from('community_post_comments').delete().eq('id', commentId);
+  if (error) throw error;
+}

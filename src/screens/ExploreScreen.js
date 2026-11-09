@@ -10,10 +10,10 @@ import StoryViewer from '../components/StoryViewer';
 import CameraPage from '../components/CameraPage';
 import {
   fetchPosts, fetchSignedUrls, fetchLikeMeta, fetchCommentCounts, toggleLike, getMyLeaderRow,
-  fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId, fetchActiveStories, deletePost,
+  fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId, fetchActiveStories, deletePost, updatePostBody,
 } from '../postsApi';
 import {
-  fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, setHelpful, deleteCommunityPost,
+  fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, setHelpful, deleteCommunityPost, updateCommunityPostBody,
   fetchCommentCounts as fetchCommunityCommentCounts,
 } from '../communitiesApi';
 
@@ -326,6 +326,10 @@ export default function ExploreScreen({
                 myAuthId={myAuthId}
                 onReported={() => setFeed((f) => f.filter((x) => x.id !== item.id))}
                 onDelete={async () => { await deleteCommunityPost(post.id); setFeed((f) => f.filter((x) => x.id !== item.id)); }}
+                onEdit={async (text) => {
+                  const row = await updateCommunityPostBody(post.id, text);
+                  setFeed((f) => f.map((x) => (x.id === item.id ? { ...x, post: { ...x.post, body: row.body, edited_at: row.edited_at } } : x)));
+                }}
                 onBlocked={() => { load(); loadStories(); }}
               />
               </View>
@@ -353,6 +357,10 @@ export default function ExploreScreen({
               myAuthId={myAuthId}
               onReported={() => setFeed((f) => f.filter((x) => x.id !== item.id))}
               onDelete={async () => { await deletePost(post); setFeed((f) => f.filter((x) => x.id !== item.id)); }}
+              onEdit={async (text) => {
+                const row = await updatePostBody(post.id, text);
+                setFeed((f) => f.map((x) => (x.id === item.id ? { ...x, post: { ...x.post, body: row.body, edited_at: row.edited_at } } : x)));
+              }}
               onBlocked={() => { load(); loadStories(); }}
             />
           );
