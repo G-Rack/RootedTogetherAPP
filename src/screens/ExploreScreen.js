@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ScrollView, Image, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, serif } from '../theme';
 import PostCard from '../components/PostCard';
@@ -10,10 +10,10 @@ import StoryViewer from '../components/StoryViewer';
 import CameraPage from '../components/CameraPage';
 import {
   fetchPosts, fetchSignedUrls, fetchLikeMeta, fetchCommentCounts, toggleLike, getMyLeaderRow,
-  fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId, fetchActiveStories,
+  fetchFollowMeta, followPerson, unfollowPerson, fetchAuthorsByAuthId, fetchActiveStories, deletePost,
 } from '../postsApi';
 import {
-  fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, setHelpful,
+  fetchMyCommunities, fetchCommunityPostsForCommunities, fetchHelpfulMeta, setHelpful, deleteCommunityPost,
   fetchCommentCounts as fetchCommunityCommentCounts,
 } from '../communitiesApi';
 
@@ -27,6 +27,10 @@ import {
 // icon up top), where they choose a Story or a Post. A small leaf icon up top opens the full Communities
 // directory (search/browse/create) — the only other entry point besides
 // someone's profile.
+// The last stories fetched, kept for the app session so the row appears
+// instantly when you come back to Explore, then refreshes quietly.
+let storiesCache = null;
+
 export default function ExploreScreen({
   session, onOpenAuthor, onOpenComments, onCreatePost, onCreateStory, onSearchPeople,
   onOpenCommunity, onOpenCommunityComments, onBrowseCommunities, onOpenChecklist,
@@ -45,9 +49,9 @@ export default function ExploreScreen({
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [canPost, setCanPost] = useState(false);
-  const [storyGroups, setStoryGroups] = useState([]);
-  const [storyImages, setStoryImages] = useState({});
-  const [me, setMe] = useState(null);
+  const [storyGroups, setStoryGroups] = useState(storiesCache ? storiesCache.groups : []);
+  const [storyImages, setStoryImages] = useState(storiesCache ? storiesCache.imgs : {});
+  const [me, setMe] = useState(storiesCache ? storiesCache.me : null);
   const [viewerIndex, setViewerIndex] = useState(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const pagerRef = useRef(null);
@@ -90,12 +94,18 @@ export default function ExploreScreen({
         return y.latest - x.latest;
       });
       const mine = authors[myAuthId];
-      setMe({
+      const meInfo = {
         name: mine ? mine.name : null,
         avatarUrl: mine && mine.profile_picture_path ? avs[mine.profile_picture_path] || null : null,
-      });
+      };
+      storiesCache = { groups, imgs, me: meInfo };
+      setMe(meInfo);
       setStoryImages(imgs);
       setStoryGroups(groups);
+      // Warm up the photos now, so each story opens instantly when tapped.
+      groups.forEach((g) => g.stories.slice(0, 3).forEach((st) => {
+        if (imgs[st.image_path]) Image.prefetch(imgs[st.image_path]).catch(() => {});
+      }));
     } catch (e) {
       // Stories are a nice-to-have on this screen; stay quiet if they fail.
     }
@@ -157,7 +167,6 @@ export default function ExploreScreen({
       setCommunityHelpfulMeta(cHelpful);
       setCommunityCommentCounts(cComments);
       setCommunitiesById(communityMap);
-      await loadStories();
     } catch (e) {
       setError('Couldn’t load Explore right now. Pull down to try again.');
       setFeed([]);
@@ -167,6 +176,11 @@ export default function ExploreScreen({
   useEffect(() => {
     load();
   }, [load]);
+
+  // Stories load on their own, at the same time as the feed (not after it).
+  useEffect(() => {
+    loadStories();
+  }, [loadStories]);
 
   // Start on the feed page (the camera page sits to its left).
   useEffect(() => {
@@ -178,7 +192,7 @@ export default function ExploreScreen({
 
   async function onRefresh() {
     setRefreshing(true);
-    await load();
+    await Promise.all([load(), loadStories()]);
     setRefreshing(false);
   }
 
@@ -311,7 +325,8 @@ export default function ExploreScreen({
                 onOpenCommunity={() => onOpenCommunity(post.community_id)}
                 myAuthId={myAuthId}
                 onReported={() => setFeed((f) => f.filter((x) => x.id !== item.id))}
-                onBlocked={load}
+                onDelete={async () => { await deleteCommunityPost(post.id); setFeed((f) => f.filter((x) => x.id !== item.id)); }}
+                onBlocked={() => { load(); loadStories(); }}
               />
               </View>
             );
@@ -337,7 +352,8 @@ export default function ExploreScreen({
               onToggleFollow={authorAuthId && authorAuthId !== myAuthId ? () => handleToggleFollow(authorAuthId) : undefined}
               myAuthId={myAuthId}
               onReported={() => setFeed((f) => f.filter((x) => x.id !== item.id))}
-              onBlocked={load}
+              onDelete={async () => { await deletePost(post); setFeed((f) => f.filter((x) => x.id !== item.id)); }}
+              onBlocked={() => { load(); loadStories(); }}
             />
           );
         }}

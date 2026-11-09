@@ -248,3 +248,9 @@ export async function getGrowthScore(authAuthId) {
   if (error) return 0;
   return count || 0;
 }
+
+// Deletes one of my own community posts (its comments and helpful marks go with it).
+export async function deleteCommunityPost(postId) {
+  const { error } = await supabase.from('community_posts').delete().eq('id', postId);
+  if (error) throw error;
+}

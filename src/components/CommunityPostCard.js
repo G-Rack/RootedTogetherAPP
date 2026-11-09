@@ -18,7 +18,7 @@ import { CONTENT_TYPES } from '../moderationApi';
 // generic like.
 export default function CommunityPostCard({
   post, author, community, helpful, commentCount, onToggleHelpful, onOpenComments, onOpenCommunity, style,
-  myAuthId, onReported, onBlocked,
+  myAuthId, onReported, onBlocked, onDelete,
 }) {
   return (
     <View style={[styles.card, style]}>
@@ -43,6 +43,7 @@ export default function CommunityPostCard({
           contentType={CONTENT_TYPES.communityPost}
           contentId={post.id}
           noun="post"
+          onDelete={onDelete}
           onReported={onReported}
           onBlocked={onBlocked}
         />

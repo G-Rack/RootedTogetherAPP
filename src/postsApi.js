@@ -354,6 +354,14 @@ export async function fetchPostLikers(postId) {
   return visible.map((r) => authors[r.user_auth_id]).filter(Boolean);
 }
 
+// Deletes one of my own posts (the database only allows that for the author).
+// Its likes and comments go with it; the photo is cleaned up afterwards.
+export async function deletePost(post) {
+  const { error } = await supabase.from('posts').delete().eq('id', post.id);
+  if (error) throw error;
+  if (post.image_path) await supabase.storage.from('post-images').remove([post.image_path]).catch(() => {});
+}
+
 // --- Stories ------------------------------------------------------------
 // Photo stories that disappear after 24 hours. The database only ever returns
 // stories that haven't expired (see the stories_select_active policy), so the

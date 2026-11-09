@@ -22,9 +22,44 @@ import { REPORT_REASONS, reportContent, blockUser } from '../moderationApi';
 //
 // ReportBlockSheet is the same sheet without the button, for screens that
 // open it some other way (e.g. long-pressing a chat message).
-export default function ReportBlockMenu({ myAuthId, targetAuthId, size = 18, style, ...sheetProps }) {
+export default function ReportBlockMenu({ myAuthId, targetAuthId, size = 18, style, onDelete, ...sheetProps }) {
   const [open, setOpen] = useState(false);
-  if (!targetAuthId || targetAuthId === myAuthId) return null;
+  if (!targetAuthId) return null;
+  // My own content: the same "…" button, but it offers Delete instead.
+  if (targetAuthId === myAuthId) {
+    if (!onDelete) return null;
+    const noun = sheetProps.noun && sheetProps.noun !== 'content' ? sheetProps.noun : 'post';
+    const confirmDelete = () => Alert.alert(
+      `Delete this ${noun}?`,
+      'This can’t be undone. Any likes and comments on it will be removed too.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await onDelete();
+            } catch (e) {
+              Alert.alert('Couldn’t delete', 'Please check your connection and try again.');
+            }
+          },
+        },
+      ]
+    );
+    return (
+      <TouchableOpacity
+        style={[styles.moreBtn, style]}
+        onPress={confirmDelete}
+        activeOpacity={0.6}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        accessibilityRole="button"
+        accessibilityLabel={`Delete your ${noun}`}
+      >
+        <Ionicons name="trash-outline" size={size + 2} color={colors.errorText} />
+      </TouchableOpacity>
+    );
+  }
   return (
     <>
       <TouchableOpacity

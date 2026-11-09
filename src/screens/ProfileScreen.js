@@ -530,6 +530,7 @@ export default function ProfileScreen({ session, onLogOut, onCreatePost, onOpenC
           imageUrls={imageUrls}
           onBack={() => setFeedPostId(null)}
           onOpenPerson={(p) => onOpenProfile?.(p.role, p.id)}
+          onPostRemoved={(postId) => { setPosts((list) => (list || []).filter((x) => x.id !== postId)); setFeedPostId(null); }}
         />
       );
     }

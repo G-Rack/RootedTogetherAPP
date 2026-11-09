@@ -10,7 +10,7 @@ import ImagePickerField from '../components/ImagePickerField';
 import {
   fetchCommunity, fetchCommunityPosts, joinCommunity, leaveCommunity,
   fetchHelpfulMeta, setHelpful, fetchCommentCounts, fetchMyMembershipMap,
-  getCommunityImageUrl, updateCommunity,
+  getCommunityImageUrl, updateCommunity, deleteCommunityPost,
 } from '../communitiesApi';
 
 const TABS = [
@@ -369,6 +369,7 @@ export default function CommunityDetailScreen({ communityId, session, onBack, on
           onOpenComments={() => onOpenComments(item.id)}
           myAuthId={myAuthId}
           onReported={() => setPosts((list) => (list || []).filter((x) => x.id !== item.id))}
+          onDelete={async () => { await deleteCommunityPost(item.id); setPosts((list) => (list || []).filter((x) => x.id !== item.id)); }}
           onBlocked={() => loadPosts(tag)}
           style={styles.postCardSpacing}
         />

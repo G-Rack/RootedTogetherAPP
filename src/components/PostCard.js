@@ -41,7 +41,7 @@ function formatPostDate(iso) {
 export default function PostCard({
   post, author, authorAvatarUrl, imageUrl, liked, likeCount, commentCount,
   onToggleLike, onOpenComments, onOpenAuthor, isFollowing, onToggleFollow,
-  myAuthId, onReported, onBlocked, onOpenPerson,
+  myAuthId, onReported, onBlocked, onOpenPerson, onDelete,
 }) {
   const verified = author?.vetting_status === 'Approved';
   const { width } = useWindowDimensions();
@@ -115,6 +115,7 @@ export default function PostCard({
             contentType={CONTENT_TYPES.post}
             contentId={post.id}
             noun="post"
+            onDelete={onDelete}
             onReported={onReported}
             onBlocked={onBlocked}
           />
