@@ -12,6 +12,7 @@ import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import HomeTabs from './src/screens/HomeTabs';
 import { configureNotifications, unregisterPushNotifications } from './src/notifications';
 import { startReferralCapture, clearPendingCode } from './src/referral';
+import * as Updates from 'expo-updates';
 
 // Show notifications as a banner even while the app is open (no-op in Expo Go).
 configureNotifications();
@@ -37,6 +38,24 @@ export default function App() {
   // Pick up a referral code from an invite link or Google Play's install
   // referrer, so the sign-up can fill it in automatically.
   useEffect(() => startReferralCapture(), []);
+
+  // Pick up app updates right away: check on launch, download, and restart
+  // into the new version (otherwise a new update only shows on the second
+  // launch). Never lets an update problem get in the way of the app.
+  useEffect(() => {
+    if (__DEV__ || !Updates.isEnabled) return;
+    (async () => {
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (check.isAvailable) {
+          await Updates.fetchUpdateAsync();
+          await Updates.reloadAsync();
+        }
+      } catch (e) {
+        // Offline or no update: carry on with the current version.
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
