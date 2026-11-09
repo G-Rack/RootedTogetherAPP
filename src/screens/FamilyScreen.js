@@ -273,6 +273,11 @@ export default function FamilyScreen({ session, isPremium, onUpgrade, onFindPeop
   }
 
   // --- Anyone else (Leaders/influencers, or a directory row that failed to load) ---
+  // Not Premium yet: show the same subscription page as Chat, so it's one tap
+  // away from here too. Premium members see the short explainer below.
+  if (!isPremium) {
+    return <PremiumUpsellScreen context="family" onUpgrade={onUpgrade} />;
+  }
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyIcon}>🌳</Text>
