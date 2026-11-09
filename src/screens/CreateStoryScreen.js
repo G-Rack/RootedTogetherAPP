@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, Image, TouchableOpacity, StyleSheet, KeyboardAvoidingView, ScrollView, Keyboard,
+  View, Text, TextInput, Image, TouchableOpacity, StyleSheet, Keyboard,
 } from 'react-native';
+import KeyboardAwareScrollView from '../components/KeyboardAwareScrollView';
 import { colors, serif } from '../theme';
 import { createStory } from '../postsApi';
 
@@ -25,8 +26,7 @@ export default function CreateStoryScreen({ session, image, onBack, onPosted }) 
   }
 
   return (
-    <KeyboardAvoidingView style={styles.wrap} behavior="padding">
-      <ScrollView style={styles.wrap} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <KeyboardAwareScrollView style={styles.wrap}>
         <TouchableOpacity onPress={onBack}>
           <Text style={styles.backLinkText}>← Back</Text>
         </TouchableOpacity>
@@ -60,8 +60,7 @@ export default function CreateStoryScreen({ session, image, onBack, onPosted }) 
         <TouchableOpacity style={[styles.btn, posting && { opacity: 0.6 }]} onPress={handleShare} disabled={posting}>
           <Text style={styles.btnText}>{posting ? 'Sharing…' : 'Share to your story'}</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -70,7 +69,7 @@ const styles = StyleSheet.create({
   backLinkText: { color: colors.brown, fontSize: 14, fontWeight: '600' },
   header: { fontFamily: serif, fontSize: 24, color: colors.brown, fontWeight: '700', marginTop: 10, marginBottom: 16 },
   previewWrap: { alignItems: 'center', marginBottom: 6 },
-  preview: { width: '62%', aspectRatio: 9 / 16, borderRadius: 16, backgroundColor: colors.creamDark },
+  preview: { width: '46%', aspectRatio: 9 / 16, borderRadius: 16, backgroundColor: colors.creamDark },
   captionRow: { flexDirection: 'row', alignItems: 'center', marginTop: 18 },
   label: { fontSize: 13.5, color: colors.text, fontWeight: '700', marginBottom: 8 },
   dismissLink: { fontSize: 12.5, color: colors.brown, fontWeight: '600', marginBottom: 8, marginLeft: 10 },

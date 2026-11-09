@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, KeyboardAvoidingView, Keyboard, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Keyboard } from 'react-native';
+import KeyboardAwareScrollView from '../components/KeyboardAwareScrollView';
 import { decode } from 'base64-arraybuffer';
 import { colors, serif } from '../theme';
 import { supabase } from '../supabaseClient';
@@ -83,12 +84,7 @@ export default function CreatePostScreen({ session, onBack, onPosted, initialIma
   }
 
   return (
-    <KeyboardAvoidingView style={styles.wrap} behavior="padding">
-      <ScrollView
-        style={styles.wrap}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
+    <KeyboardAwareScrollView style={styles.wrap}>
         <TouchableOpacity onPress={onBack}>
           <Text style={styles.backLinkText}>← Back</Text>
         </TouchableOpacity>
@@ -122,8 +118,7 @@ export default function CreatePostScreen({ session, onBack, onPosted, initialIma
         <TouchableOpacity style={[styles.postBtn, posting && styles.postBtnDisabled]} onPress={handlePost} disabled={posting}>
           <Text style={styles.postBtnText}>{posting ? 'Posting…' : 'Post'}</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

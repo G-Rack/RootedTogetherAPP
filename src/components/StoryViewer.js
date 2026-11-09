@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, Image, Modal, TouchableOpacity, StyleSheet, Animated, Easing, Alert, StatusBar,
+  PanResponder, ActivityIndicator, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -28,11 +29,39 @@ export default function StoryViewer({
   const [gi, setGi] = useState(startIndex || 0);
   const [si, setSi] = useState(0);
   const [reporting, setReporting] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [imgState, setImgState] = useState('loading'); // 'loading' | 'ok' | 'error'
   const progress = useRef(new Animated.Value(0)).current;
+  const drag = useRef(new Animated.Value(0)).current; // how far the story has been pulled down
+  const { width: winW, height: winH } = useWindowDimensions();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (visible) { setGi(startIndex || 0); setSi(0); }
-  }, [visible, startIndex]);
+    if (visible) { setGi(startIndex || 0); setSi(0); drag.setValue(0); }
+  }, [visible, startIndex, drag]);
+
+  // Swipe down to dismiss, like Instagram: the story shrinks and fades as you
+  // pull, and slides away if you pull far enough (or flick).
+  const pan = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (e, g) => g.dy > 12 && Math.abs(g.dy) > Math.abs(g.dx) * 1.4,
+      onPanResponderGrant: () => setDragging(true),
+      onPanResponderMove: (e, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (e, g) => {
+        setDragging(false);
+        if (g.dy > 110 || g.vy > 0.9) {
+          Animated.timing(drag, { toValue: 700, duration: 180, useNativeDriver: true }).start(() => onCloseRef.current());
+        } else {
+          Animated.spring(drag, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        setDragging(false);
+        Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
+      },
+    })
+  ).current;
 
   const group = groups[gi];
   const story = group ? group.stories[Math.min(si, group.stories.length - 1)] : null;
@@ -50,14 +79,17 @@ export default function StoryViewer({
     else { progress.setValue(0); }
   }, [si, gi, progress]);
 
-  // Auto-advance, paused while the report sheet is open.
+  // Auto-advance, paused while the report sheet is open or while pulling down.
   useEffect(() => {
-    if (!visible || !story || reporting) return undefined;
+    if (!visible || !story || reporting || dragging) return undefined;
     progress.setValue(0);
     const anim = Animated.timing(progress, { toValue: 1, duration: STORY_MS, easing: Easing.linear, useNativeDriver: false });
     anim.start(({ finished }) => { if (finished) next(); });
     return () => anim.stop();
-  }, [visible, story && story.id, reporting]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [visible, story && story.id, reporting, dragging]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Each new photo starts in the loading state.
+  useEffect(() => { setImgState('loading'); }, [visible, story && story.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (visible && story) markStorySeen(story.id); }, [visible, story && story.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -84,14 +116,46 @@ export default function StoryViewer({
   }
 
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <StatusBar barStyle="light-content" />
-      <View style={styles.root}>
+      <Animated.View
+        style={[styles.backdrop, { opacity: drag.interpolate({ inputRange: [0, 400], outputRange: [1, 0], extrapolate: 'clamp' }) }]}
+        pointerEvents="none"
+      />
+      <Animated.View
+        {...pan.panHandlers}
+        style={[
+          styles.root,
+          {
+            transform: [
+              { translateY: drag },
+              { scale: drag.interpolate({ inputRange: [0, 400], outputRange: [1, 0.78], extrapolate: 'clamp' }) },
+            ],
+            borderRadius: dragging ? 24 : 0,
+          },
+        ]}
+      >
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
+          <Image
+            key={imageUrl}
+            source={{ uri: imageUrl }}
+            style={{ width: winW, height: winH }}
+            resizeMode="cover"
+            fadeDuration={0}
+            onLoad={() => setImgState('ok')}
+            onError={() => setImgState('error')}
+          />
         ) : (
-          <View style={[styles.image, styles.noImage]}><Text style={styles.noImageText}>Loading…</Text></View>
+          <View style={[styles.center, { width: winW, height: winH }]}><Text style={styles.noImageText}>Loading…</Text></View>
         )}
+        {imageUrl && imgState === 'loading' ? (
+          <View style={[styles.center, StyleSheet.absoluteFill]} pointerEvents="none"><ActivityIndicator color="#fff" /></View>
+        ) : null}
+        {imgState === 'error' ? (
+          <View style={[styles.center, StyleSheet.absoluteFill]} pointerEvents="none">
+            <Text style={styles.noImageText}>Couldn’t load this photo.</Text>
+          </View>
+        ) : null}
         <View style={styles.shade} pointerEvents="none" />
 
         {/* Tap zones */}
@@ -155,15 +219,15 @@ export default function StoryViewer({
           onReported={() => { setReporting(false); onHideAuthor(group.authorId); }}
           onBlocked={() => { setReporting(false); onBlocked(); }}
         />
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  image: { ...StyleSheet.absoluteFillObject },
-  noImage: { alignItems: 'center', justifyContent: 'center' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000' },
+  root: { flex: 1, backgroundColor: '#000', overflow: 'hidden' },
+  center: { alignItems: 'center', justifyContent: 'center' },
   noImageText: { color: '#fff', opacity: 0.7 },
   shade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.12)' },
   tapRow: { ...StyleSheet.absoluteFillObject, flexDirection: 'row' },
