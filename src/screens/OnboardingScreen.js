@@ -128,6 +128,7 @@ export default function OnboardingScreen({ onSubmit, onLogin, social, onCancelSo
     forWho: 'Myself', faith: null,
     name: social?.name || '', day: '', month: '', year: '',
     orgName: '', contactName: social?.name || '',
+    devotional: false,
   });
   const [showPw, setShowPw] = useState(false);
   const [showRef, setShowRef] = useState(false);
@@ -213,7 +214,10 @@ export default function OnboardingScreen({ onSubmit, onLogin, social, onCancelSo
       if (!dob) return setError('Please enter a valid date of birth.');
     }
     setSubmitting(true);
-    const res = await onSubmit(data.role, buildFields(data.role, data, dob));
+    const fields = buildFields(data.role, data, dob);
+    // Only an explicit tick counts. App.js removes this before sending the answers to the server.
+    if (data.devotional) fields['Devotional Opt In'] = 'yes';
+    const res = await onSubmit(data.role, fields);
     if (!mounted.current) return undefined;
     setSubmitting(false);
     if (!res.ok) {
@@ -596,6 +600,18 @@ export default function OnboardingScreen({ onSubmit, onLogin, social, onCancelSo
           </View>
         )}
 
+        <TouchableOpacity
+          style={styles.optRow}
+          onPress={() => set('devotional', !data.devotional)}
+          activeOpacity={0.8}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: data.devotional }}
+          accessibilityLabel="Send me the daily devotional"
+        >
+          <Ionicons name={data.devotional ? 'checkbox' : 'square-outline'} size={24} color={data.devotional ? DARK.gold : DARK.faint} />
+          <Text style={styles.optText}>Send me the daily devotional</Text>
+        </TouchableOpacity>
+
         <View style={{ flex: 1, minHeight: 24 }} />
         <ErrorNote message={error} />
         <PrimaryButton label="Finish" onPress={next} busy={submitting} />
@@ -691,6 +707,8 @@ const styles = StyleSheet.create({
   legal: { marginTop: 14, textAlign: 'center', fontSize: 12, lineHeight: 17, color: DARK.faint, paddingHorizontal: 8 },
   legalLink: { color: DARK.text, textDecorationLine: 'underline' },
   signInRow: { alignItems: 'center', paddingVertical: 8 },
+  optRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 22 },
+  optText: { color: DARK.text, fontSize: 15 },
   refToggle: { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 2 },
   refToggleText: { color: DARK.gold, fontSize: 14, fontWeight: '600' },
   signInText: { fontSize: 15, color: DARK.soft },

@@ -4,6 +4,7 @@ import { SafeAreaProvider, SafeAreaView as SafeAreaInsetView } from 'react-nativ
 import { StatusBar } from 'expo-status-bar';
 import { colors, serif } from './src/theme';
 import { SUBMIT_ENDPOINT, COMPLETE_SOCIAL_SIGNUP_ENDPOINT, SUPABASE_ANON_KEY } from './src/config';
+import { saveDevotionalConsent } from './src/emailConsent';
 import { supabase } from './src/supabaseClient';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import WelcomeScreen from './src/screens/WelcomeScreen';
@@ -90,6 +91,8 @@ export default function App() {
     delete fields.Password;
     const referredByCode = fields['Referral Code'];
     delete fields['Referral Code'];
+    const devotional = fields['Devotional Opt In'] === 'yes';
+    delete fields['Devotional Opt In'];
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
@@ -107,6 +110,7 @@ export default function App() {
       if (!res.ok) {
         return { ok: false, error: data.error || 'Something went wrong saving your sign-up.' };
       }
+      if (devotional) await saveDevotionalConsent(token, 'app-social-signup');
       clearPendingCode();
       setWelcome(true);
       setNeedsProfile(false);
@@ -131,6 +135,10 @@ export default function App() {
     // to the member who invited this person; an unknown code is simply ignored.
     const referredByCode = fields['Referral Code'];
     delete fields['Referral Code'];
+
+    // "Send me the daily devotional": only saved if they ticked it, and only once they are signed in.
+    const devotional = fields['Devotional Opt In'] === 'yes';
+    delete fields['Devotional Opt In'];
 
     // Demo builds (EXPO_PUBLIC_DEMO_MODE=true at build time, e.g. for a
     // click-through preview with no live backend) simulate a successful
@@ -166,10 +174,11 @@ export default function App() {
       // time "Start exploring" is tapped.
       clearPendingCode();
       setWelcome(true);
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({
         email: fields.Email,
         password,
       });
+      if (!signInError && devotional) await saveDevotionalConsent(signedIn?.session?.access_token, 'app-signup');
       if (signInError) {
         // The sign-up itself worked — just send them to log in.
         console.warn('Post-signup sign-in failed:', signInError.message);
